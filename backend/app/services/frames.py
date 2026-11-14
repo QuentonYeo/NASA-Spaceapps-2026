@@ -23,18 +23,24 @@ class FramesService:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
-    def start(self, region: Region) -> dict:
+    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None) -> dict:
         job = Job(str(uuid4()), region)
         self.jobs.add(job)
-        self.jobs.executor.submit(self._run, job)
+        self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
         return {"sequenceId": job.id, "status": "queued",
                 "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
 
-    def _run(self, job: Job):
+    def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None):
         try:
             with job.lock:
                 job.status = "discovering"
             exposures = sorted({f.id: f for f in self.archive.discover(job.region)}.values(), key=lambda f: (f.mjd, f.id))
+            if exposure_ids:
+                exposures = [frame for frame in exposures if frame.id in exposure_ids]
+                if len(exposures) != len(exposure_ids):
+                    raise AppError("EXAMPLE_NOT_COVERED", "Some selected exposures do not cover these coordinates. Try the example coordinates or switch to Explore.", 422)
+            if detector:
+                exposures = [frame for frame in exposures if frame.detector == f"SPHEREx-{detector}"]
             if len(exposures) > self.max_frames:
                 raise AppError("FRAME_LIMIT_EXCEEDED", f"Found {len(exposures)} frames; limit is {self.max_frames}. No frames were truncated.", 422)
             visit, previous = 0, None

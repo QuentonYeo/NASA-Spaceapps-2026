@@ -4,7 +4,7 @@ const radians = Math.PI / 180;
 const pixelScale = 6.15 / 3600 * radians;
 const masToRad = radians / 3_600_000;
 
-export function projectGaia(source: GaiaSource, query: SkyQuery, observedAt: string, side: number) {
+export function projectGaia(source: Pick<GaiaSource, 'ra' | 'dec' | 'refEpoch' | 'pmRa' | 'pmDec'>, query: SkyQuery, observedAt: string, side: number, clip = true) {
   const time = Date.parse(observedAt);
   const years = Number.isFinite(time) ? 2000 + (time - Date.UTC(2000, 0, 1, 12)) / 31_557_600_000 - source.refEpoch : 0;
   const ra = source.ra * radians;
@@ -28,5 +28,5 @@ export function projectGaia(source: GaiaSource, query: SkyQuery, observedAt: str
   // Use image-edge coordinates. East and north increase leftward and upward.
   const x = side / 2 - east / depth / pixelScale;
   const y = side / 2 - north / depth / pixelScale;
-  return x >= 0 && y >= 0 && x < side && y < side ? { x, y } : null;
+  return !clip || (x >= 0 && y >= 0 && x < side && y < side) ? { x, y } : null;
 }

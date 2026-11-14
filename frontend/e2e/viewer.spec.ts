@@ -13,7 +13,10 @@ function frame(id: string, day: number) {
 
 test('shows inputs and an empty viewer without layout overflow', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Explore the infrared sky.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'See what moves.' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('link', { name: /Explore for movement/ }).click();
+  await expect(page.getByRole('heading', { name: 'Explore for movement' })).toBeVisible();
   await expect(page.getByLabel('Right ascension')).toHaveValue('133.79513');
   await expect(page.getByLabel('Declination')).toHaveValue('-7.24515');
   await expect(page.getByLabel('Field of view')).toHaveValue('0.05');
@@ -43,8 +46,8 @@ test('submits once, polls all pages, and navigates received images', async ({ pa
       progress: { total: 3, ready: next, failed: 0 }, frames: batch, error: null,
     } });
   });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Find observations' }).click();
+  await page.goto('/#explore');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(3);
   expect(submissions).toBe(1);
   expect(cursors).toEqual(['0', '1', '2']);
@@ -61,7 +64,7 @@ test('submits once, polls all pages, and navigates received images', async ({ pa
 });
 
 
-test('automatically requests the next image batch', async ({ page }) => {
+test('requests the next image batch on demand', async ({ page }) => {
   let batches = 0;
   const cursors: string[] = [];
   await page.route('**/api/frames', (route) => route.fulfill({ status: 202,
@@ -80,11 +83,15 @@ test('automatically requests the next image batch', async ({ page }) => {
       progress: { total: 2, ready: batches ? 2 : 1, failed: 0 },
       frames: [frame(batches ? 'second' : 'first', batches ? 11 : 10)], error: null } });
   });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Find observations' }).click();
+  await page.goto('/#explore');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Load next batch' })).toBeVisible();
+  expect(batches).toBe(0);
+  await page.getByRole('button', { name: 'Load next batch' }).click();
   await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(2);
   expect(batches).toBe(1);
-  expect(cursors).toEqual(['0', '1']);
+  expect(cursors).toEqual(['0', '1', '1']);
 });
 
 
@@ -110,8 +117,8 @@ test('stops and resumes the same sequence without losing images or its cursor', 
       progress: { total: 2, ready: batches ? 2 : 1, failed: 0 },
       frames: batches ? [frame('second', 11)] : cursor === '0' ? [frame('first', 10)] : [], error: null } });
   });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Find observations' }).click();
+  await page.goto('/#explore');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(1);
   await page.getByRole('button', { name: 'Stop loading' }).click();
   await expect(page.getByRole('button', { name: 'Resume loading' })).toBeVisible();
@@ -124,4 +131,35 @@ test('stops and resumes the same sequence without losing images or its cursor', 
   expect(batches).toBe(1);
   expect(cursors).toEqual(['0', '1', '1']);
   await expect(page.getByRole('button', { name: 'Resume loading' })).toHaveCount(0);
+});
+
+test('launches the chosen validation example with its exposure IDs', async ({ page }) => {
+  const referenceId = 'ivo://irsa.ipac/spherex_dr1?2025W19_2B_0346_1/D2';
+  const comparisonId = 'ivo://irsa.ipac/spherex_dr1?2025W20_2D_0176_3/D2';
+  const grid = { width: 1, height: 1, orientation: 'north-up' };
+  await page.route('**/api/frames', async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      ra: 210.80227, dec: 54.34895, fov: .1, exposureIds: [referenceId, comparisonId],
+    });
+    await route.fulfill({ status: 202, json: {
+      sequenceId: 'validate-test', pollUrl: '/api/frames/validate-test', pollAfterSeconds: 1,
+    } });
+  });
+  await page.route('**/api/frames/validate-test/gaia', (route) => route.fulfill({ json: { sources: [], limited: false } }));
+  await page.route('**/api/frames/validate-test?*', (route) => route.fulfill({ json: {
+    sequenceId: 'validate-test', status: 'completed', nextCursor: 2, hasMore: false, scheduledCount: 2,
+    remaining: 0, batchSize: 12, progress: { total: 2, ready: 2, failed: 0 },
+    frames: [frame(comparisonId, 16), frame(referenceId, 10)].map((item) => ({
+      ...item, detector: 'SPHEREx-D2', alignedGrid: grid, alignedImageData: png,
+      sharedDisplay: {vmin: 0, vmax: 1},
+    })), error: null,
+  } }));
+  await page.goto('/');
+  await page.getByRole('link', { name: /Validate a known object/ }).click();
+  await page.getByLabel('Validation example').selectOption('m101');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  const table = page.getByRole('table', { name: 'Selected frame comparison' });
+  await expect(table.getByRole('row')).toHaveCount(3);
+  await expect(table.getByRole('row').nth(1)).toContainText('2025-05-10');
+  await expect(page.getByLabel('Gaia reference stars')).toBeChecked();
 });

@@ -11,15 +11,13 @@ Open the Vite URL (normally http://localhost:5173). Vite proxies `/api` to
 http://127.0.0.1:8000, so the browser only calls its own origin. This is a development
 proxy; production hosting must route `/api` to the backend separately.
 
-Enter ICRS RA, Dec and FOV in degrees, then choose **Find observations**. The default
-is WISE 0855, with a 0.05-degree (3 arcminute) field. Submission creates one backend
-job; automatic polling merges frames by ID and sorts by observation time. Polling
-honors backend delays, drains each batch, and retries transient
-poll failures up to three times. POST is not automatically retried to avoid creating
-duplicate jobs. New queries abort old browser requests, and unmounting stops polling.
-**Stop loading** stops polling and prevents additional batch requests. The current
-backend batch may finish. **Resume loading** reconnects to the same sequence and
-completion cursor, preserving received images; no new discovery job is created.
+Home offers **Validate a known object** and **Explore for movement**. Validate
+loads selected exposure IDs for Arosa, M101 or Barnard’s Star and sets up their
+default comparison in Aligned Blink. Explore accepts ICRS RA, Dec and FOV in
+degrees and an optional detector filter. It loads one batch at a time.
+**Stop loading** stops polling. **Resume loading** reconnects to the same sequence
+and cursor, and **Load next batch** requests another batch. The backend may finish
+a batch already in progress.
 
 Use Previous/Next, the slider, arrow keys while the viewer is focused, or the
 horizontally scrolling thumbnail strip. Selected frames remain selected as earlier
@@ -61,8 +59,7 @@ Use `npx playwright test --headed --project=desktop` for a visible test browser.
 ## Batches and display size
 
 The backend initially downloads 12 exposures, not the whole discovered sequence.
-At `awaiting_more`, the frontend automatically requests the next batch and keeps
-polling until all exposures have results. **Stop loading** pauses this loop;
+At `awaiting_more`, Explore waits for **Load next batch**. Validation can finish loading its small requested exposure set automatically. **Stop loading** pauses this loop;
 **Resume loading** continues from the saved sequence and completion cursor.
 The backend reports remaining exposures, selects each batch, and keeps visit labels
 consistent across batches. Configure `FRAME_BATCH_SIZE` on the backend to change 12.

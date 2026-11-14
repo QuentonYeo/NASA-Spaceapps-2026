@@ -7,6 +7,8 @@ class FrameQuery(BaseModel):
     ra: float = Field(ge=0, lt=360, description="ICRS right ascension in degrees")
     dec: float = Field(ge=-90, le=90, description="ICRS declination in degrees")
     fov: float = Field(gt=0, le=1, description="Square cutout side length in degrees")
+    exposureIds: list[str] | None = Field(default=None, min_length=1, max_length=12)
+    detector: Literal["D1", "D2", "D3", "D4", "D5", "D6"] | None = None
 
 
 class BatchQuery(BaseModel):

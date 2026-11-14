@@ -8,9 +8,10 @@ interface OverlayProps {
   observedAt: string;
   image: string;
   side: number;
+  showLabels: boolean;
 }
 
-export function GaiaMarkers({ catalogue, query, observedAt, image, side }: OverlayProps) {
+export function GaiaMarkers({ catalogue, query, observedAt, image, side, showLabels }: OverlayProps) {
   const [mask, setMask] = useState<{ image: string; bytes: Uint8ClampedArray }>();
   useEffect(() => {
     const preview = new Image();
@@ -28,13 +29,26 @@ export function GaiaMarkers({ catalogue, query, observedAt, image, side }: Overl
   }, [image, side]);
 
   if (mask?.image !== image) return null;
-  return <svg className="gaia-markers" viewBox={`0 0 ${side} ${side}`} aria-label="Gaia DR3 catalogue positions" role="img">
-    {catalogue.sources.map((source) => {
-      const point = projectGaia(source, query, observedAt, side);
-      if (!point || !mask.bytes[4 * (Math.floor(point.y) * side + Math.floor(point.x)) + 3]) return null;
-      return <circle key={source.sourceId} cx={point.x} cy={point.y} r={Math.max(1, side * 0.012)}>
-        <title>{`Gaia DR3 ${source.sourceId} · G ${source.gMagnitude.toFixed(2)}`}</title>
-      </circle>;
-    })}
-  </svg>;
+  const markers = catalogue.sources.flatMap((source, index) => {
+    const point = projectGaia(source, query, observedAt, side);
+    const label = `G${index + 1}`;
+    if (!point || !mask.bytes[4 * (Math.floor(point.y) * side + Math.floor(point.x)) + 3]) return [];
+    return [{ ...point, label, id: source.sourceId,
+      title: `${label} · Gaia DR3 ${source.sourceId} · G magnitude ${source.gMagnitude.toFixed(2)}` }];
+  });
+
+  return <>
+    <svg className="gaia-markers" viewBox={`0 0 ${side} ${side}`} aria-label="Gaia DR3 catalogue positions" role="img">
+      {markers.map(({ x, y, id, title }) => <circle key={id} cx={x} cy={y} r={Math.max(1, side * 0.012)}>
+        <title>{title}</title>
+      </circle>)}
+    </svg>
+    {showLabels && <div className="gaia-labels">
+      {markers.map(({ x, y, id, label, title }) => <span key={id} title={title}
+        className={x > side * 0.75 ? 'gaia-label gaia-label-left' : 'gaia-label'}
+        style={{ left: `${100 * x / side}%`, top: `${100 * y / side}%` }}>
+        {label}
+      </span>)}
+    </div>}
+  </>;
 }

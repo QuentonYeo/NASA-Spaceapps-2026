@@ -19,7 +19,7 @@ Submit `POST /api/frames` with JSON:
 {"ra": 133.79513, "dec": -7.24515, "fov": 0.05}
 ```
 
-All inputs are degrees (ICRS); FOV is the square cutout side length, up to 1 degree.
+Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up to 1 degree. Optional `exposureIds` (1–12) and `detector` (D1–D6) restrict discovery results before downloads are scheduled.
 Returns HTTP 202 with `sequenceId`, `pollUrl`, and `pollAfterSeconds`.
 Poll `GET {pollUrl}?after=0`, then use each response's `nextCursor` as `after`.
 Respect `pollAfterSeconds` and continue until status is terminal **and** `hasMore`

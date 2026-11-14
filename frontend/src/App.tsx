@@ -3,20 +3,43 @@ import type { FormEvent } from 'react';
 import { useFrames } from './state/useFrames';
 import type { Frame } from './api/frames';
 import { GaiaMarkers } from './GaiaOverlay';
+import { arosaPosition } from './state/arosaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
+import { Home } from './Home';
+import { examples, fields } from './state/validationExamples';
 import './App.css';
+
+function currentMode() {
+  return window.location.hash === '#validate' ? 'validate' : window.location.hash === '#explore' ? 'explore' : 'home';
+}
+
 
 function App() {
   const sequence = useFrames();
+  const [mode, setMode] = useState(currentMode);
+  const [exampleId, setExampleId] = useState(() =>
+    examples.find((example) => example.exposureIds[0] === sequence.query?.exposureIds?.[0])?.id ?? 'arosa');
+  const example = examples.find((item) => item.id === exampleId) ?? examples[0];
+  const [detector, setDetector] = useState(sequence.query?.detector ?? '');
+  const activeExample = examples.find((item) => item.exposureIds[0] === sequence.query?.exposureIds?.[0]);
+  const showResults = mode === 'validate' ? !!activeExample : !activeExample;
+  useEffect(() => {
+    function updateMode() { setMode(currentMode()); }
+    window.addEventListener('hashchange', updateMode);
+    return () => window.removeEventListener('hashchange', updateMode);
+  }, []);
+
   const [inputs, setInputs] = useState(() => sequence.query
     ? { ra: String(sequence.query.ra), dec: String(sequence.query.dec), fov: String(sequence.query.fov) }
-    : { ra: '133.79513', dec: '-7.24515', fov: '0.05' });
+    : fields[1].inputs);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
-  const [zoom, setZoom] = useState('4');
+  const [zoom, setZoom] = useState(sequence.query?.exposureIds ? 'fit' : '4');
   const [contrast, setContrast] = useState('shared');
-  const [blinkMode, setBlinkMode] = useState(false);
-  const gaia = useGaiaCatalogue(blinkMode ? sequence.page?.sequenceId : undefined);
+  const [blinkMode, setBlinkMode] = useState(!!sequence.query?.exposureIds);
+  const [showArosa, setShowArosa] = useState(true);
+  const [gaiaLabels, setGaiaLabels] = useState(false);
+  const gaia = useGaiaCatalogue(mode !== 'home' && showResults && blinkMode ? sequence.page?.sequenceId : undefined);
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
   const [candidateId, setCandidateId] = useState('');
   const [playing, setPlaying] = useState(false);
@@ -25,13 +48,14 @@ function App() {
   function preview(frame: Frame) {
     return (contrast === 'shared' ? frame.sharedImageData : null) ?? frame.imageData ?? undefined;
   }
-  const ready = sequence.frames.filter((frame) => frame.status === 'ready' && frame.imageData);
-  const failed = sequence.frames.filter((frame) => frame.status === 'failed');
+  const frames = showResults ? sequence.frames : [];
+  const ready = frames.filter((frame) => frame.status === 'ready' && frame.imageData);
+  const failed = frames.filter((frame) => frame.status === 'failed');
   const foundIndex = ready.findIndex((frame) => frame.id === selectedId);
   const index = foundIndex < 0 ? 0 : foundIndex;
   const selected = ready[index];
   const aligned = ready.filter((frame) => frame.alignedImageData && frame.alignedGrid && frame.sharedDisplay);
-  const reference = aligned.find((frame) => frame.id === selected?.id) ?? aligned[0];
+  const reference = aligned.find((frame) => frame.id === (selectedId ?? activeExample?.pair[0])) ?? aligned[0];
   const comparisons = reference && aligned.filter((frame) => frame.id !== reference.id &&
     frame.detector === reference.detector && frame.release === reference.release &&
     frame.sharedDisplay?.vmin === reference.sharedDisplay?.vmin &&
@@ -41,7 +65,8 @@ function App() {
     ? Infinity : Math.abs(frame.wavelengthUm - reference.wavelengthUm);
   const closest = comparisons?.reduce<Frame | undefined>((best, frame) =>
     !best || wavelengthDistance(frame) < wavelengthDistance(best) ? frame : best, undefined);
-  const chosenIds = appendedIds ?? (closest ? [closest.id] : []);
+  const defaultComparison = comparisons?.find((frame) => frame.id === activeExample?.pair[1]) ?? closest;
+  const chosenIds = appendedIds ?? (defaultComparison ? [defaultComparison.id] : []);
   const blinkFrames = reference ? [reference, ...chosenIds.flatMap((id) =>
     comparisons?.filter((frame) => frame.id === id) ?? [])] : [];
   const candidates = comparisons?.filter((frame) => !chosenIds.includes(frame.id)) ?? [];
@@ -50,6 +75,8 @@ function App() {
   const activeIndex = Math.min(blinkIndex, Math.max(0, blinkCount - 1));
   const visible = blinkMode ? blinkFrames[activeIndex] : selected;
   const visibleGrid = blinkMode ? visible?.alignedGrid : visible?.grid;
+  const showArosaControl = blinkMode && blinkFrames.some((frame) => arosaPosition(frame, sequence.query));
+  const arosa = blinkMode && showArosa && visible ? arosaPosition(visible, sequence.query) : null;
 
   useEffect(() => {
     if (!blinkMode || !playing || blinkCount < 2) return;
@@ -77,14 +104,18 @@ function App() {
     resetBlink();
   }
 
-  const progress = sequence.page?.progress;
+  const progress = showResults ? sequence.page?.progress : undefined;
   const finished = (progress?.ready ?? 0) + (progress?.failed ?? 0);
+  const missingPreferredFrame = mode === 'validate' && activeExample &&
+    ['completed', 'partial', 'failed'].includes(sequence.page?.status ?? '') &&
+    activeExample.pair.some((id) => !aligned.some((frame) => frame.id === id));
   const status = sequence.paused ? 'paused' : sequence.busy ? sequence.page?.status ?? 'submitting' : sequence.page && ['queued', 'discovering', 'running'].includes(sequence.page.status) ? 'paused' : sequence.page?.status ?? 'idle';
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const query = { ra: Number(inputs.ra), dec: Number(inputs.dec), fov: Number(inputs.fov) };
-    if (Object.values(inputs).some((value) => !value.trim()) ||
+    const searchInputs = mode === 'validate' ? example.inputs : inputs;
+    const query = { ra: Number(searchInputs.ra), dec: Number(searchInputs.dec), fov: Number(searchInputs.fov) };
+    if (Object.values(searchInputs).some((value) => !value.trim()) ||
         !Object.values(query).every(Number.isFinite) || query.ra < 0 || query.ra >= 360 ||
         query.dec < -90 || query.dec > 90 || query.fov <= 0 || query.fov > 1) {
       setValidation('Enter RA from 0 to <360, Dec from -90 to 90, and FOV from >0 to 1 degree.');
@@ -92,7 +123,15 @@ function App() {
     }
     setValidation(''); setSelectedId(null);
     resetBlink();
-    void sequence.start(query);
+    if (mode === 'validate') {
+      setBlinkMode(true);
+      setZoom('fit');
+      setShowArosa(true);
+      gaia.toggle(true);
+      void sequence.start({ ...query, exposureIds: example.exposureIds });
+    } else {
+      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true });
+    }
   }
 
   function move(next: number) {
@@ -100,20 +139,39 @@ function App() {
     if (frame) selectFrame(frame.id);
   }
 
-  return <main className="shell">
+  if (mode === 'home') return <Home />;
+
+  return <main className="shell workflow-shell">
     <header className="masthead">
       <div className="brand"><span className="orbit" aria-hidden="true">✳</span> SPHEREx <span> / SKY BLINK</span></div>
-      <span className="tag">OBSERVATION VIEWER</span>
+      <nav className="workspace-nav" aria-label="Workflows">
+        <a href="#home">Home</a>
+        <a href="#validate" aria-current={mode === 'validate' ? 'page' : undefined}>Validate</a>
+        <a href="#explore" aria-current={mode === 'explore' ? 'page' : undefined}>Explore</a>
+      </nav>
     </header>
-    <section className="intro"><p className="eyebrow">A PATCH OF SKY. MANY MOMENTS.</p>
-      <h1>Explore the infrared sky.</h1>
-      <p>Choose a location and step through its SPHEREx observations as they arrive.</p>
+    <section className="intro workflow-intro">
+      <h1>{mode === 'validate' ? 'Validate a known object' : 'Explore for movement'}</h1>
+      <p>{mode === 'validate'
+        ? 'Open a prepared comparison and see how known motion looks in SPHEREx.'
+        : 'Choose a sky field and compare observations at different times.'}</p>
     </section>
     <div className="workspace">
       <aside className="panel controls">
-        <div className="section-heading"><span className="eyebrow">01 / LOCATION</span><span className="tag">ICRS · DEGREES</span></div>
-        <h2>Where shall we look?</h2>
+        <h2>{mode === 'validate' ? 'Choose an example' : 'Search a field'}</h2>
         <form onSubmit={submit}>
+          {mode === 'validate' ? <>
+            <label htmlFor="example">Validation example</label>
+            <select id="example" value={exampleId} onChange={(event) => setExampleId(event.target.value)}>
+              {examples.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <p className="example-purpose">{example.purpose}</p>
+            <dl className="example-coordinates">
+              <div><dt>RA</dt><dd>{example.inputs.ra}°</dd></div>
+              <div><dt>Dec</dt><dd>{example.inputs.dec}°</dd></div>
+              <div><dt>Field of view</dt><dd>{example.inputs.fov}°</dd></div>
+            </dl>
+          </> : <>
           <label htmlFor="ra">Right ascension <span>RA</span></label>
           <input id="ra" type="number" step="any" min="0" max="359.999999999" required value={inputs.ra}
             onChange={(e) => setInputs({ ...inputs, ra: e.target.value })} />
@@ -124,29 +182,39 @@ function App() {
           <input id="fov" type="number" step="any" min="0.000001" max="1" required value={inputs.fov}
             onChange={(e) => setInputs({ ...inputs, fov: e.target.value })} />
           <p className="hint">Square side length · {Number(inputs.fov) > 0 ? (Number(inputs.fov) * 60).toFixed(2) : '\u2014'} arcmin</p>
-          <button className="primary" type="submit">{sequence.busy ? 'Start new query' : 'Find observations'} <span aria-hidden="true">↗</span></button>
+          <label htmlFor="detector">Detector</label>
+          <select id="detector" value={detector} onChange={(event) => setDetector(event.target.value)}>
+            <option value="">All detectors</option>
+            {['D1', 'D2', 'D3', 'D4', 'D5', 'D6'].map((band) => <option key={band}>{band}</option>)}
+          </select>
+          </>}
+          <button className="primary" type="submit">{showResults && sequence.busy ? 'Start new search' : 'Start'} <span aria-hidden="true">↗</span></button>
           {validation && <p className="error" role="alert">{validation}</p>}
         </form>
-        <button className="preset" onClick={() => setInputs({ ra: '133.79513', dec: '-7.24515', fov: '0.05' })}>
-          <span>EXAMPLE TARGET</span><strong>WISE 0855−0714 <span aria-hidden="true">↗</span></strong>
-        </button>
-        <button className="preset" onClick={() => setInputs({ ra: '210.80227', dec: '54.34895', fov: '0.1' })}>
-          <span>TUTORIAL TARGET</span><strong>M101 / Pinwheel galaxy</strong>
-        </button>
-        <div className="progress-block" role="status" aria-live="polite">
-          <div className="section-heading"><span className="eyebrow">SEQUENCE STATUS</span><span className={sequence.busy ? 'status active' : 'status'}>{status}</span></div>
+        {mode === 'explore' && <section className="suggested-fields" aria-label="Suggested fields">
+          <h3>Suggested fields</h3>
+          {fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
+            <strong>{field.name}</strong><span>{field.reason}</span>
+          </button>)}
+        </section>}
+        {showResults && <div className="progress-block" role="status" aria-live="polite">
+          <div className="section-heading"><span className="eyebrow">OBSERVATION STATUS</span><span className={sequence.busy ? 'status active' : 'status'}>{status}</span></div>
           <progress aria-label="Frames processed" max={progress?.total || 1} value={finished} />
           <div className="stats"><span><b>{progress?.ready ?? 0}</b> ready</span><span><b>{progress?.failed ?? 0}</b> failed</span><span><b>{progress?.total ?? 0}</b> total</span></div>
           {sequence.notice && <p className="hint">{sequence.notice}</p>}
           {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
           {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
-          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>Resume loading</button>}
+          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>{sequence.paused ? 'Resume loading' : 'Load next batch'}</button>}
           {sequence.error && <p className="error" role="alert">{sequence.error}</p>}
+          {missingPreferredFrame && <p className="hint">
+            The documented pair is incomplete. The viewer uses available aligned frames.
+            {sequence.page?.status === 'partial' || sequence.page?.status === 'failed' ? ' Select Start to retry.' : ''}
+          </p>}
           {sequence.page?.status === 'completed' && progress?.total === 0 && <p>No observations cover this location.</p>}
-        </div>
+        </div>}
       </aside>
       <section className="panel viewer-panel" aria-label="Frame viewer">
-        <div className="viewer-heading"><div><p className="eyebrow">02 / OBSERVATIONS</p><h2>{selected ? `Visit ${selected.visit + 1}` : 'Your window into the sky'}</h2></div><span className="tag">{ready.length ? `${index + 1} / ${ready.length}` : 'NO FRAMES YET'}</span></div>
+        <div className="viewer-heading"><div><p className="eyebrow">{mode === 'validate' && activeExample ? activeExample.name : 'OBSERVATIONS'}</p><h2>{selected ? `Visit ${selected.visit + 1}` : 'Your window into the sky'}</h2></div><span className="tag">{ready.length ? `${index + 1} / ${ready.length}` : 'NO FRAMES YET'}</span></div>
         <div className="viewer-controls">
         <label className="zoom-control">Display size
           <select value={zoom} onChange={(event) => setZoom(event.target.value)}>
@@ -192,6 +260,12 @@ function App() {
         </div>}
         {blinkMode && reference && <div className="gaia-controls">
           <label><input type="checkbox" checked={gaia.enabled} onChange={(event) => gaia.toggle(event.target.checked)} /> Gaia reference stars</label>
+          {gaia.enabled && !!gaia.catalogue?.sources.length && <label>
+            <input type="checkbox" checked={gaiaLabels} onChange={(event) => setGaiaLabels(event.target.checked)} /> Show Gaia labels
+          </label>}
+          {showArosaControl && <label>
+            <input type="checkbox" checked={showArosa} onChange={(event) => setShowArosa(event.target.checked)} /> Show Arosa trajectory
+          </label>}
           {gaia.enabled && <span role="status">
             {gaia.loading ? 'Looking up Gaia DR3 sources…' : gaia.error
               ? gaia.error + ' Toggle off and on to retry.'
@@ -214,11 +288,23 @@ function App() {
             <img src={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} />
             {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers catalogue={gaia.catalogue}
               query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
-              side={visibleGrid.width} />}
+              side={visibleGrid.width} showLabels={gaiaLabels} />}
+            {arosa && <>
+              <svg className="arosa-track" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
+                <line x1={arosa.start.x} y1={arosa.start.y} x2={arosa.end.x} y2={arosa.end.y} />
+              </svg>
+              <span className={arosa.verified ? 'arosa-marker' : 'arosa-marker arosa-estimated'} role="img"
+                aria-label={arosa.verified ? 'Arosa position checked in this exposure' : 'Estimated Arosa position'}
+                style={{ left: `${100 * arosa.x / visibleGrid.width}%`, top: `${100 * arosa.y / visibleGrid.height}%` }}>
+                <span className={arosa.x > visibleGrid.width / 2 ? 'arosa-label-left' : undefined}>
+                  {arosa.verified ? 'Arosa' : 'Arosa (est.)'}
+                </span>
+              </span>
+            </>}
           </div> : visible ? <img style={zoom === 'fit' ? { width: 'auto', height: '85%' } : {
             width: (visibleGrid?.width ?? 29) * Number(zoom), height: 'auto',
           }} src={preview(visible)} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} /> :
-            <div className="empty-state"><span className="crosshair" aria-hidden="true">+</span><h3>{blinkMode && ready.length ? 'No aligned frames available' : sequence.busy ? 'Listening for the first frame' : 'Start with a sky location'}</h3><p>{sequence.busy ? 'Images will appear here while the rest load.' : 'Enter coordinates or use the example target, then find observations.'}</p></div>}
+            <div className="empty-state"><span className="crosshair" aria-hidden="true">+</span><h3>{blinkMode && ready.length ? 'No aligned frames available' : sequence.busy ? 'Listening for the first frame' : 'Start with a sky location'}</h3><p>{sequence.busy ? 'Images will appear here while the rest load.' : 'Choose a field or example and select Start.'}</p></div>}
           <span className="stage-label">{blinkMode && visible ? `FRAME ${activeIndex + 1} / ${blinkCount}` : 'SPHEREx / INFRARED'}</span><span className="stage-label right">{visibleGrid ? `${visibleGrid.width} × ${visibleGrid.height} PX` : 'AWAITING SIGNAL'}</span>
         </div>
         {blinkMode ? <>

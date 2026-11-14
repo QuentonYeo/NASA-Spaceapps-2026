@@ -28,6 +28,7 @@ function saveSearch(search: SavedSearch | null) {
 
 export function useFrames() {
   const cursor = useRef(0);
+  const lastStatus = useRef<SequencePage["status"] | null>(null);
   const [saved] = useState(readSearch);
   const session = useRef(saved);
   const [resumable, setResumable] = useState(false);
@@ -41,6 +42,7 @@ export function useFrames() {
   const [query, setQuery] = useState<SkyQuery | null>(saved?.query ?? null);
   const receive = useCallback((next: SequencePage) => {
     cursor.current = next.nextCursor;
+    lastStatus.current = next.status;
     setPage(next); setNotice('');
     setFrames((existing) => {
       const merged = new Map(existing.map((frame) => [frame.id, frame]));
@@ -50,20 +52,23 @@ export function useFrames() {
     if (next.error) setError(next.error.message);
   }, []);
 
-  const run = useCallback(async (input?: SkyQuery, restoring = false) => {
+  const run = useCallback(async (input?: SkyQuery, restoring = false, loadMore = false) => {
     if (!input && !session.current) return;
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
     const existing = session.current;
-    const sameQuery = !!(input && existing && input.ra === existing.query.ra &&
-      input.dec === existing.query.dec && input.fov === existing.query.fov);
+    const sameQuery = !!(input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
+      input.dec === existing.query.dec && input.fov === existing.query.fov &&
+      input.detector === existing.query.detector && input.manualBatches === existing.query.manualBatches &&
+      JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
     const newSearch = sameQuery ? undefined : input;
     const restorePaused = restoring && !!existing?.paused;
+    let batchesToRequest = loadMore ? 1 : 0;
     setError(''); setBusy(true); setPaused(restorePaused);
     if (newSearch) {
       saveSearch(null);
-      cursor.current = 0; session.current = null; setResumable(false);
+      cursor.current = 0; lastStatus.current = null; session.current = null; setResumable(false);
       setFrames([]); setPage(null); setQuery(newSearch);
     }
     setNotice(newSearch ? 'Discovering exposures...' : 'Reconnecting to the existing search...');
@@ -85,7 +90,8 @@ export function useFrames() {
           setResumable(false);
           return;
         }
-        if (restorePaused) return;
+        if (restorePaused || (active.query.manualBatches && batchesToRequest === 0)) return;
+        batchesToRequest -= 1;
         setNotice('Requesting the next image batch...');
         await requestBatch(active.sequenceId, latest.scheduledCount, current.signal);
       }
@@ -97,7 +103,7 @@ export function useFrames() {
           setResumable(false);
           setPaused(false);
           setNotice('');
-          setError('The previous search expired. Select Find observations to reload this view.');
+          setError('The previous search expired. Select Start to reload this view.');
           return;
         }
         setError(caught instanceof Error ? caught.message : 'The request failed. Please try again.');
@@ -114,7 +120,7 @@ export function useFrames() {
   }, [run, saved]);
 
   const start = (input: SkyQuery) => run(input);
-  const resume = () => run();
+  const resume = () => run(undefined, false, true);
 
   function stop() {
     controller.current?.abort(); setBusy(false); setPaused(true);

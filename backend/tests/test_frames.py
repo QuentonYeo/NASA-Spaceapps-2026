@@ -352,3 +352,15 @@ def test_search_checkpoint_restores_previews_and_resumes_next_batch(tmp_path):
         assert [frame["id"] for frame in service.poll(sequence_id, 0)["frames"]] == ["one", "two"]
     finally:
         restored_jobs.close()
+
+
+def test_validation_only_schedules_requested_exposures(service):
+    service.archive = Archive([exposure("unrelated"), exposure("selected", 60001)])
+    with TestClient(create_app(service)) as client:
+        response = client.post("/api/frames", json={
+            "ra": 210.8, "dec": 54.3, "fov": .1, "exposureIds": ["selected"],
+        })
+    assert response.status_code == 202
+    page = completed(service, response.json()["sequenceId"])
+    assert page["progress"] == {"total": 1, "ready": 1, "failed": 0}
+    assert [frame["id"] for frame in page["frames"]] == ["selected"]

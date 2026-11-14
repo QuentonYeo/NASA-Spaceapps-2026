@@ -1,4 +1,9 @@
-export interface SkyQuery { ra: number; dec: number; fov: number }
+export interface SkyQuery {
+  ra: number; dec: number; fov: number;
+  exposureIds?: string[];
+  detector?: string;
+  manualBatches?: boolean;
+}
 export interface ApiError { code: string; message: string; retryable: boolean; retryAfterSeconds: number | null }
 export interface Frame {
   id: string; visit: number; observedAtUtc: string; release: string; detector: string;
@@ -89,7 +94,8 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  return request<Accepted>('/api/frames', signal, query);
+  const { ra, dec, fov, exposureIds, detector } = query;
+  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector });
 }
 
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {

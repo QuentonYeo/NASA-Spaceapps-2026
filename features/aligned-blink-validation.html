@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aligned Blink validation examples | SPHEREx Sky Blink</title>
+<style>
+body{max-width:830px;margin:0 auto;padding:32px 20px 56px;background:#f3f7fa;color:#182b3d;font:1rem/1.6 system-ui,sans-serif}
+h1,h2,h3{line-height:1.2}section{padding:18px 0;border-top:1px solid #cbd9e2}
+a{color:#11635b}nav{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+table{width:100%;border-collapse:collapse;background:white}caption{text-align:left;font-weight:600}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid #cbd9e2}
+th{background:#e7eff4}code{white-space:nowrap}li+li{margin-top:.35em}
+</style>
+</head>
+<body>
+<main>
+<h1>Aligned Blink validation examples</h1>
+<p>Use these fields in the <a href="http://localhost:5173/">local viewer</a> to check visible motion, stationary alignment, and the limits of a visual comparison. Times below are UTC and come from the DR1 archive metadata used by the viewer.</p>
+<nav aria-label="Examples"><a href="#arosa">Arosa · clear motion</a><a href="#m101">M101 · stationary control</a><a href="#barnard">Barnard’s Star · subtle motion</a></nav>
+<table>
+<caption>Search settings in degrees</caption>
+<thead><tr><th scope="col">Target</th><th scope="col">RA</th><th scope="col">Dec</th><th scope="col">Field of view</th></tr></thead>
+<tbody>
+<tr><th scope="row">Arosa</th><td><code>296.32728</code></td><td><code>-24.02440</code></td><td><code>0.20</code></td></tr>
+<tr><th scope="row">M101</th><td><code>210.80227</code></td><td><code>54.34895</code></td><td><code>0.10</code></td></tr>
+<tr><th scope="row">Barnard’s Star</th><td><code>269.4462</code></td><td><code>4.769</code></td><td><code>0.08333</code></td></tr>
+</tbody>
+</table>
+<h2>Open a prepared comparison</h2>
+<p>Choose <strong>Validate a known object</strong> on Home, select an example, and click <strong>Start</strong>. The app requests that example’s exposure IDs and opens its default pair in Aligned Blink. To reproduce an example manually, use <strong>Explore for movement</strong> and the steps below.</p>
+<ol>
+<li>Enter the coordinates and field of view and click <strong>Start</strong>. Use <strong>Load next batch</strong> as needed to reach the listed observations.</li>
+<li>Choose <strong>View → Aligned blink</strong> and <strong>Display size → Fit viewer</strong>. Select the earlier <strong>SPHEREx-D2</strong> exposure as the reference.</li>
+<li>Remove the automatic comparison if it differs from the listed frame. Once the later exposure is loaded, choose it under <strong>Frame to add</strong> and click <strong>Add frame</strong>. Check the timestamps in the comparison table.</li>
+<li>Use <strong>Play blink</strong> or select each frame in the table. Turn on Gaia reference stars if you want catalogue positions on screen.</li>
+</ol>
+<section id="arosa">
+<h2>1. Arosa · clear asteroid motion</h2>
+<ul>
+<li><strong>Reference:</strong> 2026-04-20 00:10:00.826, D2. Look about 88% across from the left and 38% down from the top of the image.</li>
+<li><strong>Comparison:</strong> 2026-04-20 19:42:50.947, D2. Look about 12% across and 62% down.</li>
+</ul>
+<p><strong>Follow the track:</strong> Keep the same center and use <code>0.30</code>° for more space around the path. Add the D2 frames near 00:12:09, 00:14:18, 00:16:27, 19:44:59, 19:47:08 and 19:49:19 on 20 April 2026 in chronological order. <strong>Show Arosa trajectory</strong> is on by default when a supported frame is selected. The dashed amber line shows the estimated track. Solid circles mark the two positions checked in DR1 cutouts. Dashed circles labeled Arosa (est.) mark estimates for other frames.</p>
+<p>Estimates interpolate linearly between the two checked positions and extend that trend about 6.5 minutes beyond the late position. This is a visual guide for D2 observations in that time window. It provides no new detection or independently computed ephemeris. Expect less than one pixel of movement within either six-minute group and a large gap between them.</p>
+<p><strong>Expected:</strong> A compact source shifts from the upper-right to the lower-left by about 92 native pixels over 19.5 hours. Nearby stationary sources should stay roughly in place. The DR1 cutouts at the exact settings above were downloaded and checked for a local peak near each predicted position. The two exposures were around entries 152 and 162 of 218, so allow time for the earlier batches. The target wavelengths differ (about 1.21 and 1.33 µm at field center), so compare the source’s position. <a href="https://github.com/Andrei25Ciuta/SPHEREx/blob/main/docs/VALIDATION.md#6-known-solar-system-bodies-skybot">Published Arosa measurements and predicted positions</a></p>
+</section>
+<section id="m101">
+<h2>2. M101 · stationary alignment control</h2>
+<ul>
+<li><strong>Reference:</strong> 2025-05-10 17:04:37.747, D2.</li>
+<li><strong>Comparison:</strong> 2025-05-16 13:21:54.605, D2.</li>
+</ul>
+<p><strong>Expected:</strong> The galaxy and isolated field stars stay in approximately the same places. Some change in brightness and small residual shifts are possible. The investigation measured about 1.506 and 1.503 µm at the target and found residual shifts of 0.12–0.39 pixels in its initial alignment. The live viewer uses different resampling, so those numbers describe the investigation and are not a pass threshold. The two exposure IDs were verified in DR1 at about entries 8 and 49. <a href="../project-planning/weekend-plan.html#image-processing">M101 processing results and comparison images</a></p>
+<p><strong>Overlay check:</strong> Toggle Gaia reference stars and then switch between 4× and Fit viewer. Markers should remain at the same sky positions relative to the displayed image. A marker may disappear when its pixel is masked, and a catalogued source may have no visible infrared counterpart.</p>
+</section>
+<section id="barnard">
+<h2>3. Barnard’s Star · subtle-motion challenge</h2>
+<ul>
+<li><strong>Reference:</strong> 2025-08-21 23:33:58.666, D2.</li>
+<li><strong>Comparison:</strong> 2026-03-22 05:28:36.912, D2.</li>
+</ul>
+<p><strong>Expected:</strong> Barnard’s Star is near the center of this field. Its reported proper motion is about 10.4 arcseconds per year, so the baseline of these observations corresponds to roughly one native pixel from proper motion alone. Compare it against nearby stars and check how hard it is to judge the shift. Saturation can mask part of the core and change its apparent center. Both timestamps were verified in live DR1 metadata, around entries 24 and 210 of 239. Visibility and centroid shift for this exact pair were not independently measured. <a href="https://github.com/Andrei25Ciuta/SPHEREx/blob/main/docs/VALIDATION.md#3-barnards-star-saturation">Barnard’s Star measurements and saturation notes</a></p>
+</section>
+<p><a href="aligned-blink.html">Aligned Blink feature notes</a></p>
+</main>
+</body>
+</html>
