@@ -38,6 +38,7 @@ class S3Cutouts:
             with self.fs.open(key, "rb") as remote:
                 with fits.open(remote, memmap=False, lazy_load_hdus=True) as hdus:
                     hdu = hdus["IMAGE"]
+                    image_header = hdu.header
                     wcs = WCS(hdu.header).celestial
                     x, y = wcs.world_to_pixel_values(region.ra, region.dec)
                     if not np.isfinite([x, y]).all():
@@ -55,6 +56,8 @@ class S3Cutouts:
                     # .section performs range reads, unlike .data which loads the entire image.
                     data = np.array(hdu.section[y0:y1, x0:x1], copy=True)
                     header = wcs.slice((slice(y0, y1), slice(x0, x1))).to_header(relax=True)
+                    if "BUNIT" in image_header:
+                        header["BUNIT"] = image_header["BUNIT"]
                     output = io.BytesIO()
                     fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(data, header, name="IMAGE")]).writeto(output)
                     return output.getvalue()

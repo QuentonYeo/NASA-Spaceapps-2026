@@ -53,15 +53,14 @@ starts when the gap between consecutive exposures exceeds 10 days. Visits group
 frames and never discard distinct exposures. The 300-frame limit fails the job
 explicitly rather than truncating it.
 
-These are **native-grid, unaligned discovery previews**, with transparent non-finite
-pixels and per-frame percentile/asinh contrast. Each frame reports its dimensions
-and display limits. They are not aligned or comparable photometric products; they
-do not yet apply documented science flag masks, shared contrast, zodiacal subtraction,
-local wavelength extraction, or difference processing. Sequence `grid`, coverage,
-and local wavelength remain null. `sourceFitsUrl` is provenance, not an instruction
-for the frontend to fetch it. FITS data is discarded after rendering; encoded PNGs
-are retained with the job until expiry. No astronomical processing is imported
-from the exploratory notebooks.
+These are **native-grid, unaligned discovery previews**. Each ready frame includes
+a per-frame percentile/asinh preview and, when available, a shared-scale preview.
+The first usable frame with a nonzero display range sets the fixed limits for its
+detector, release and brightness unit for the rest of the sequence. Known
+instrument artifacts and invalid variance are masked when the cutout supplies
+quality arrays. Local wavelength is reported when the spectral WCS is usable.
+Previews do not apply background subtraction or alignment. FITS data is discarded
+after rendering; encoded PNGs are retained until job expiry.
 
 ## Configuration
 

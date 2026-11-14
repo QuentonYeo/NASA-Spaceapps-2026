@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aligned Blink | SPHEREx Sky Blink</title>
+<style>
+:root{color-scheme:light;--ink:#182b3d;--muted:#496174;--line:#cedbe4;--accent:#11635b}
+*{box-sizing:border-box}body{margin:0;background:#f3f7fa;color:var(--ink);font:1rem/1.65 system-ui,sans-serif}
+main{max-width:880px;margin:auto;padding:40px 24px 64px}
+header{border-bottom:3px solid var(--accent);padding-bottom:20px}
+h1,h2,h3{line-height:1.2}h1{font-size:clamp(2rem,6vw,3.4rem);margin:.2em 0}
+h2{margin-top:2em}h3{margin-top:1.5em}.context{color:var(--muted);margin:0}
+nav{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}
+table{width:100%;border-collapse:collapse;background:white}caption{text-align:left;font-weight:600;margin-bottom:8px}
+td,th{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}th{background:#e6eef4}
+li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid var(--line);margin-top:2em;padding-top:1em;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="context">SPHEREx Sky Blink · Feature notes · 14 November 2026</p>
+<h1>Aligned Blink</h1>
+<p>Compare SPHEREx observations of the same sky field in place, using a common sky grid and a fixed brightness scale. The feature helps a person look for a source that shifts relative to nearby stationary stars.</p>
+</header>
+<nav aria-label="On this page">
+<a href="#workflow">Using the viewer</a><a href="#processing">Image processing</a><a href="#eligibility">Frame eligibility</a><a href="#archive">Archive behavior</a><a href="#validation">Validation and limits</a>
+</nav>
+<section id="workflow">
+<h2>Using the viewer</h2>
+<ol>
+<li>Open the <a href="http://localhost:5173/">local viewer</a>, choose a target such as M101 / Pinwheel galaxy, and select <strong>Find observations</strong>.</li>
+<li>Choose <strong>View → Aligned blink</strong>. Select a <strong>Reference frame</strong>. When a compatible comparison is available, the viewer initially picks the frame with the closest reported wavelength at the target. If no wavelength comparison is possible, it falls back to the first compatible frame in timeline order.</li>
+<li>Choose a <strong>Frame to add</strong> and click <strong>Add frame</strong>. Repeat to build a longer sequence. Frames are appended in the order chosen. Select a frame number in the comparison table to show it, or remove any appended frame. Changing the reference rebuilds the selection around that reference.</li>
+<li>Choose <strong>Play blink</strong> to loop through the sequence at 650 ms per frame. Use Previous, Next, or the arrow keys with the image focused to step manually. The display size stays fixed while switching frames.</li>
+</ol>
+<p>The selected-frame comparison table keeps each frame in playback order and highlights the one on screen. It shows UTC observation time, visit, detector, release, and wavelength at the target. Missing wavelength values are labeled unavailable. The table lets you compare timestamps and wavelengths during playback.</p>
+</section>
+<section id="processing">
+<h2>What changes between the archive and the screen</h2>
+<h3>Field of view and pixel scale</h3>
+<p>RA and Dec set the cutout center. Field of view sets how much sky the cutout covers. The archive crops native pixels at about 6.15 arcseconds per pixel. A fully covered 0.05° cutout is roughly 29 pixels across and a 0.10° cutout is roughly 59. Wider fields contain more sky pixels. Fit-to-viewer can make a source appear smaller on screen because more pixels fit into the same area. Edge coverage and rounding can affect the dimensions of native cutouts. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/#cutouts-of-spectral-image-mefs">IRSA cutout documentation</a></p>
+<h3>Sky alignment</h3>
+<p>Native previews preserve the input FITS dimensions. Two native exposures can have the same nominal pixel scale while pointing or rotating differently, so a stationary source can shift in the viewer. Aligned Blink uses each cutout’s celestial WCS to reproject calibrated brightness values with bilinear interpolation onto a common north-up grid centered on the query at 6.15 arcseconds per pixel. Masked or uncovered pixels are transparent where interpolation has no valid result. <a href="../backend/app/services/rendering.py">Renderer</a></p>
+<h3>Brightness and quality</h3>
+<p>Auto per frame derives black and white points from each frame’s valid 0.5th and 99.5th percentiles. Locked by detector uses the first usable non-flat frame to fix the limits for its detector, release, and brightness unit for that search. Aligned previews use those shared limits. They can look identical to Auto when the frame set the limits or when a later frame has a similar brightness distribution.</p>
+<p>The renderer clips to the display limits and applies an asinh stretch before encoding 256 gray levels. PNG compression preserves the resulting image. Brightness precision is lost during clipping and quantization, and aligned reprojection also resamples the original spatial values. When quality arrays are available, the renderer masks selected instrument artifacts and pixels with nonfinite or nonpositive variance. Source and transient flags are preserved. <a href="../backend/app/services/rendering.py">Mask and preview implementation</a></p>
+</section>
+<section id="eligibility">
+<h2>What makes a frame eligible</h2>
+<p>The picker checks each candidate against the reference. A candidate needs all of the following:</p>
+<ul>
+<li>A loaded, ready preview with an aligned image, an aligned grid, and shared display limits.</li>
+<li>The same detector and release as the reference.</li>
+<li>Matching black and white points.</li>
+<li>An observation timestamp different from the reference’s timestamp.</li>
+<li>A frame ID distinct from the reference and every frame already in the blink list.</li>
+</ul>
+<p>Wavelength proximity ranks the default comparison. There is currently no wavelength tolerance or bandpass-overlap filter for added frames. <strong>Add frame</strong> is disabled when the picker has no eligible loaded frames left. If only three eligible observations have loaded including the reference, two can already be in the default sequence, leaving one to add. More eligible frames can appear as additional cutouts load. <a href="../frontend/src/App.tsx">Viewer selection and playback logic</a></p>
+</section>
+<section id="archive">
+<h2>Why adjacent timeline frames can be ineligible</h2>
+<p>The backend queries IRSA SIA at the target coordinates with a 1-arcsecond search radius. It uses DR1 by default and can be configured for other collections. It deduplicates by archive observation ID and sorts by observation time. The requested field of view is passed to the cutout service. Cutouts load in batches, and the frontend merges them into one chronological timeline across detectors. A visit groups observations by time gap, with a new visit after a gap greater than 10 days by default. <a href="../backend/app/services/irsa/discovery.py">Archive search</a> · <a href="../backend/app/services/frames.py">Batching and visits</a> · <a href="../frontend/src/state/useFrames.ts">Timeline sorting</a></p>
+<p>In the live metadata check, all 246 M101 results and 258 WISE 0855 results were DR1. Every adjacent pair switched detectors for both targets. The first M101 rows illustrate how separate detector series are interleaved:</p>
+<table>
+<caption>M101 observations on 9 May 2025 (UTC)</caption>
+<thead><tr><th scope="col">Time</th><th scope="col">Detector</th><th scope="col">Compared with first D3 frame</th></tr></thead>
+<tbody>
+<tr><td>03:33:55.152</td><td>D3</td><td>Reference</td></tr>
+<tr><td>03:33:55.152</td><td>D6</td><td>Different detector, same timestamp</td></tr>
+<tr><td>03:36:04.061</td><td>D3</td><td>Potential match after loading and alignment</td></tr>
+<tr><td>03:36:04.061</td><td>D6</td><td>Different detector</td></tr>
+</tbody>
+</table>
+<h3>What the detectors measure</h3>
+<p>SPHEREx splits incoming light into shorter- and longer-wavelength paths. Two detectors can therefore image the target at the same timestamp. Each detector covers a distinct infrared range, and the measured wavelength varies across each detector because its filter changes with position. The viewer shows wavelength at the target when the cutout has usable spectral WCS. Even within one detector, a stationary object can change in apparent brightness as the wavelength changes. <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/">IRSA spectral image tutorial</a></p>
+<table>
+<caption>SPHEREx detector wavelength ranges</caption>
+<thead><tr><th scope="col">Detector</th><th scope="col">Range (µm)</th></tr></thead>
+<tbody><tr><td>D1</td><td>0.75–1.09</td></tr><tr><td>D2</td><td>1.10–1.62</td></tr><tr><td>D3</td><td>1.63–2.41</td></tr><tr><td>D4</td><td>2.42–3.82</td></tr><tr><td>D5</td><td>3.83–4.41</td></tr><tr><td>D6</td><td>4.42–5.00</td></tr></tbody>
+</table>
+</section>
+<section id="validation">
+<h2>Validation and limits</h2>
+<p>A live M101 pair from D6 produced aligned 59 × 59 previews with shared contrast. A synthetic regression check verified that a shifted source maps to the same output pixel and that missing pixels stay transparent. Chrome checks covered manual switching, playback, appending, removing, and avoiding duplicates.</p>
+<p>The earlier M101 investigation compared six pairs using an 80% wavelength-band overlap criterion and found one qualifying pair, at 1.506 and 1.503 µm at the target. Its initial alignment used nearest-neighbor sampling and left residual centroid offsets of 0.12–0.39 pixels among four reference-star candidates. The brightest star left a positive-negative residual. These measurements describe the investigation pair and its processing, while the current viewer uses bilinear reprojection. <a href="../project-planning/weekend-plan.html#image-processing">M101 image-processing investigation</a></p>
+<p>For visual review, follow a candidate’s position relative to nearby stars across several frames at similar wavelengths. Brightness changes can also come from wavelength, background, noise, masking, and clipping. The current feature uses sky-coordinate alignment and shared contrast. Background subtraction, bandpass matching, subpixel registration refinement, and a current residual accuracy measurement are pending.</p>
+<p>For AI detection or quantitative measurements, use calibrated FITS brightness arrays, variance, masks, and WCS. Compare registered arrays on a common grid for pixel-level detection, or detect on the native arrays and link detections in RA and Dec. Future UI work discussed includes an interactive FITS-backed brightness stretch, candidate displacement in arcseconds, and a difference overlay after verifying registration and matching stellar profiles. <a href="../project-planning/image-processing/m101-ui/manifest.json">M101 FITS fixture manifest</a></p>
+</section>
+<footer>Project documentation for SPHEREx Sky Blink.</footer>
+</main>
+</body>
+</html>

@@ -18,6 +18,7 @@ class Job:
     results: list[dict] = field(default_factory=list)
     exposures: list[tuple[Exposure, int]] = field(default_factory=list)
     scheduled: int = 0
+    display_limits: dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
     error: dict | None = None
     lock: RLock = field(default_factory=RLock)
 

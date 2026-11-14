@@ -84,7 +84,7 @@ class FramesService:
                 job.status = "running"
                 exposures = job.exposures[start:job.scheduled]
             with ThreadPoolExecutor(max_workers=self.cutout_workers) as pool:
-                futures = [pool.submit(self._frame, exposure, job.region, visit)
+                futures = [pool.submit(self._frame, job, exposure, visit)
                            for exposure, visit in exposures]
                 for future in as_completed(futures):
                     result = future.result()
@@ -104,13 +104,19 @@ class FramesService:
             with job.lock:
                 job.finished = time.monotonic()
 
-    def _frame(self, exposure, region, visit):
+    def _frame(self, job, exposure, visit):
         result = {"id": exposure.id, "visit": visit, "observedAtUtc": exposure.observed_at,
                   "release": exposure.release, "detector": exposure.detector, "wavelengthUm": None,
                   "sourceFitsUrl": exposure.url, "previewUrl": None, "coverage": None,
                   "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
         try:
-            result.update(self.renderer.render(self.cutouts.fetch(exposure, region)))
+            pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
+            group = (exposure.release, exposure.detector, pixels.unit)
+            with job.lock:
+                if pixels.limits[1] > pixels.limits[0]:
+                    job.display_limits.setdefault(group, pixels.limits)
+                shared = job.display_limits.get(group)
+            result.update(self.renderer.preview(pixels, shared))
         except AppError as exc:
             result.update(status="failed", error=exc.payload())
         except Exception:

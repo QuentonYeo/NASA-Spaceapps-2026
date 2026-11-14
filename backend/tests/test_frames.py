@@ -299,3 +299,30 @@ def test_explicit_batches_do_not_prefetch_or_duplicate(service):
         assert final["remaining"] == 0 and len(set(fetched)) == 5
         assert sorted(f["visit"] for f in final["frames"]) == [0, 1, 2, 3, 4]
         assert client.post(url, json={"after": 5}).status_code == 409
+
+
+def test_aligned_preview_registers_shifted_exposures_and_preserves_mask():
+    from astropy.wcs import WCS
+
+    region = Region(210.8, 54.3, 9 * 6.15 / 3600)
+    renderer = FitsRenderer()
+    aligned = []
+    for shift in (0, 2):
+        wcs = WCS(naxis=2)
+        wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+        wcs.wcs.crval = [region.ra, region.dec]
+        wcs.wcs.crpix = [5 + shift, 5]
+        wcs.wcs.cdelt = [-6.15 / 3600, 6.15 / 3600]
+        data = np.zeros((9, 9))
+        data[2, 4 + shift] = 10
+        data[5, 3 + shift] = np.nan
+        output = io.BytesIO()
+        fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(data, wcs.to_header(), name="IMAGE")]).writeto(output)
+        preview = renderer.preview(renderer.prepare(output.getvalue(), region), (0, 10))
+        assert preview["alignedGrid"] == {"width": 9, "height": 9, "orientation": "north-up"}
+        png = base64.b64decode(preview["alignedImageData"].split(",", 1)[1])
+        aligned.append(np.array(Image.open(io.BytesIO(png))))
+    for image in aligned:
+        assert np.unravel_index(image[:, :, 0].argmax(), (9, 9)) == (6, 4)
+        assert image[3, 3, 3] == 0
+    assert aligned[1][4, 8, 3] == 0

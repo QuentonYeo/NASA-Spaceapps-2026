@@ -3,6 +3,11 @@ export interface ApiError { code: string; message: string; retryable: boolean; r
 export interface Frame {
   id: string; visit: number; observedAtUtc: string; release: string; detector: string;
   status: 'ready' | 'failed'; imageData: string | null;
+  sharedImageData?: string | null;
+  sharedDisplay?: { vmin: number; vmax: number } | null;
+  alignedImageData?: string | null;
+  alignedGrid?: { width: number; height: number; orientation: string } | null;
+  wavelengthUm?: number | null;
   grid: { width: number; height: number; orientation: string } | null;
   error: ApiError | null;
 }

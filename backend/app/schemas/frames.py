@@ -53,9 +53,9 @@ class Frame(BaseModel):
     ZODI background estimates, PSF/EPSF data, WCS-WAVE spectral lookup tables,
     full spatial/spectral WCS, and original FITS headers (including processing
     VERSION and calibration/provenance details beyond the explicit fields).
-    PNGs use lossy 8-bit display scaling; non-finite pixels become transparent.
-    Quality flag masks are not yet applied. Previews are unaligned and use
-    per-frame contrast, so they are unsuitable for quantitative comparisons.
+    PNGs use lossy 8-bit display scaling. Non-finite pixels and known instrument
+    artifacts are transparent when quality extensions are present. Previews are
+    unsuitable for quantitative comparisons. The optional aligned preview uses a common sky grid.
 
     The S3 adapter currently retains only a cropped IMAGE and spatial WCS in
     its temporary FITS, dropping other extensions/headers before rendering.
@@ -68,12 +68,16 @@ class Frame(BaseModel):
     observedAtUtc: str
     release: str
     detector: str
-    wavelengthUm: float | None = Field(description="Local wavelength at the query center in micrometres; currently null because spectral WCS is not evaluated.")
+    wavelengthUm: float | None = Field(description="Local wavelength at the query center in micrometres, when spectral WCS is available.")
     sourceFitsUrl: str = Field(description="Original archive FITS URL retained as provenance; archive access is handled by the backend.")
     previewUrl: str | None
     coverage: float | None = Field(description="Currently null: valid sky coverage and quality-mask coverage are not measured.")
     status: Literal["ready", "failed"]
     imageData: str | None = Field(description="Inline base64 RGBA PNG preview, not calibrated FITS pixels. 8-bit asinh scaling with per-frame limits; non-finite pixels are transparent.")
+    sharedImageData: str | None = Field(default=None, description="PNG with fixed contrast for the same detector, release and brightness unit in this sequence.")
+    sharedDisplay: Display | None = None
+    alignedImageData: str | None = Field(default=None, description="PNG on the shared north-up query grid, using sharedDisplay limits.")
+    alignedGrid: Grid | None = None
     grid: Grid | None
     display: Display | None
     error: ErrorInfo | None

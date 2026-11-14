@@ -26,8 +26,11 @@ horizontally scrolling thumbnail strip. Selected frames remain selected as earli
 observations arrive. Failed frames are listed separately. The frontend displays
 inline images and metadata only; discovery/rendering remain in the backend.
 
-Native previews are unaligned and use per-frame contrast. They are not suitable
-for quantitative comparisons. No images are requested directly from IRSA or S3.
+The viewer defaults to **Locked by detector**, which keeps the brightness scale
+fixed as more frames load. Choose **Auto per frame** to inspect individual
+exposures. Wavelength at the target appears when available. Native previews are
+unaligned, and different wavelengths can still show brightness changes. No
+images are requested directly from IRSA or S3.
 
 ```sh
 npm run build

@@ -1,5 +1,6 @@
 from typing import Protocol
 from app.domain.models import Exposure, Region
+from app.services.rendering import PreviewPixels
 
 
 class Archive(Protocol):
@@ -11,7 +12,8 @@ class Cutouts(Protocol):
 
 
 class Renderer(Protocol):
-    def render(self, cutout: bytes) -> dict: ...
+    def prepare(self, cutout: bytes, region: Region | None = None) -> PreviewPixels: ...
+    def preview(self, pixels: PreviewPixels, shared: tuple[float, float] | None = None) -> dict: ...
 
 
 class Frames(Protocol):
