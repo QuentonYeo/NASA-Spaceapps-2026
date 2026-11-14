@@ -12,3 +12,22 @@ Relevant IRSA tutorial pages, in suggested reading order.
 | [SPHEREx HiPS All-Sky Mosaic Cubes](https://caltech-ipac.github.io/irsa-tutorials/spherex-hipscube/) | 6 | DR1 all-sky cube, FITS tile layout, per-channel access |
 
 Source notebooks: https://github.com/Caltech-IPAC/irsa-tutorials/tree/main/tutorials/spherex
+
+## Our scripts (image pull → PNG)
+
+The tutorials, cut down to what the blink viewer needs. Run in order from
+`backend/`; each saves its output to `notebooks/output/` (gitignored) for the
+next one. Defaults use WISE 0855.
+
+| Script | Service | What it shows |
+|---|---|---|
+| `find_frames.py` | resolve, discover | TAP query for frames at a position, grouping into visits, S3 path mapping |
+| `read_cutout.py` | — | What's in a frame: extensions, per-pixel wavelength, flag bits and which to mask |
+| `fetch_cutouts.py` | cutouts | Cutout service vs S3 partial reads, with timings; 503 retry; bounded concurrency |
+| `align_diff.py` | align, diffmask | Common grid, zodi/background removal, like-with-like pair, significance map |
+| `render_png.py` | render | Shared stretch, transparent bad pixels, diverging diff colours, tiny PNGs |
+
+Needs: `astropy astroquery numpy matplotlib httpx s3fs reproject`.
+
+Not covered yet: ePSF (PSF tutorial, Phase 3 PSF matching), HiPS cube
+(Phase 6 molecule maps), aperture photometry (Phase 7 spectrum).
