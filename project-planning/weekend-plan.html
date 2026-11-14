@@ -24,7 +24,7 @@ header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius
 <div class="callout">
 <div id="metrics" class="summary" aria-live="polite"></div>
 <div id="workstream-progress"></div>
-<p><small>Core progress counts implementation and rehearsal tasks. Stretch tasks are counted separately. Updates save in this browser. Export a snapshot to share it and import it to replace this browser’s tracker state.</small></p>
+<p><small>Core progress counts implementation and rehearsal tasks. Stretch tasks are counted separately. Repository implementation updates seed the completed task rows; your edits save in this browser. Export a snapshot to share it and import it to replace this browser’s tracker state.</small></p>
 </div>
 <div class="toolbar">
 <label>Workstream<select id="lane-filter"><option value="">All workstreams</option></select></label>
@@ -34,6 +34,15 @@ header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius
 <p id="tracker-message" role="status"></p>
 <div id="board"></div>
 <noscript>Enable JavaScript to use the tracker. The full weekend plan is below.</noscript>
+</section>
+<section id="implementation-notes" aria-labelledby="implementation-title">
+<h2 id="implementation-title">Implementation update - 14 November</h2>
+<div class="callout">
+<p><strong>API and viewer integration:</strong> the backend now discovers and deduplicates DR1 exposures, groups visits with a configurable 10-day gap, fetches cutouts through selectable IRSA/S3 adapters, and delivers inline PNGs through polling. It downloads 12 frames per batch; the viewer automatically requests subsequent batches until all exposures have results. Stop/Resume controls preserve received images and the polling cursor; an already running backend batch may finish. The basic viewer has sky inputs, progress, frame navigation, native/4x/fit display controls, and WISE 0855/M101 presets.</p>
+<p><strong>Image-processing handoff:</strong> current PNGs are temporary native-grid previews. Masking, background estimation, alignment, differences, shared display scaling and scientific exports remain the image-processing workstream's responsibility. The S3 preview adapter currently reads IMAGE and spatial WCS only; retrieval must preserve the additional arrays and metadata required by that developer.</p>
+<p><strong>Quality issue to address:</strong> some exposures look much noisier than others. The renderer independently stretches each frame and does not use FLAGS, VARIANCE or local wavelength. Compare like wavelengths, expose quality summaries and use a documented display policy before interpreting changes. Screenshots alone cannot establish whether a difference is noise, an artifact or real variation. Do not mask every nonzero flag: some flags identify sources rather than unusable pixels.</p>
+<p><small>Validated: 23 backend tests, 7 frontend unit tests and 8 desktop/mobile browser checks. An eight-exposure local benchmark measured fresh IRSA 47.0 s, pooled IRSA 16.4 s and S3 range reads 6.3 s; this is one sample, not a performance guarantee. Jobs remain process-local; durable jobs, cancellation and cached demo fallback are still outstanding.</small></p>
+</div>
 </section>
 <section id="weekend">
 <h2>Weekend checkpoints</h2>
@@ -153,10 +162,38 @@ checks.forEach((input, index) => {
 ].forEach(([title, detail], index) => {
   tasks.push({id: 'stretch-' + index, title, detail, lane: 5, milestone: 4, stretch: true});
 });
+// Specific implementation tasks are separate from the broader workstream goals.
+// Defaults below record repository progress without overwriting browser edits.
+tasks.push(
+  {id: 'api-frames-polling', title: 'Build modular frames API, polling and exception handlers', lane: 0, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Implemented POST /api/frames and GET /api/frames/{id}, typed API schemas, service interfaces, dependency wiring and centralized error responses. Services do not import tutorial notebooks.'},
+  {id: 'archive-dedup-visits', title: 'Deduplicate DR1 exposures and group configurable visits', lane: 0, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Stable archive IDs remove duplicate exposures. A configurable 10-day gap groups visits without discarding distinct exposures. Frame limits fail explicitly rather than silently truncating results.'},
+  {id: 'archive-provider-retries', title: 'Add IRSA retries, pooled connections and selectable S3 reads', lane: 0, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Bounded IRSA retries handle transient HTTP/transport failures, Retry-After and separate pool timeouts. S3 range reads are selectable with CUTOUT_PROVIDER=s3; IRSA remains the default. Providers were benchmarked on eight exposures.'},
+  {id: 'api-explicit-batches', title: 'Fetch frames in explicit batches with idempotent load-more', lane: 0, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Fetch 12 exposures initially, pause at awaiting_more, and accept POST /api/frames/{id}/batches with scheduledCount as after. Polling resumes at nextCursor. Duplicate batch requests do not duplicate downloads; visits span batch boundaries.'},
+  {id: 'viewer-basic-polling', title: 'Build basic sky-input viewer with automatic batch polling', lane: 2, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'React viewer submits RA/Dec/FOV, shows progress and failures, merges frames by ID, drains polling pages and ignores stale responses. Automatic polling continues across batches. Stop/Resume preserves the sequence and cursor; stopping prevents further batch requests but does not cancel an already running backend batch.'},
+  {id: 'viewer-frame-navigation', title: 'Add image navigation, display sizes and target presets', lane: 2, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Previous/next, slider, keyboard controls and scrolling thumbnails display inline PNGs. Native/4x/fit sizes preserve source pixels. WISE 0855 and M101 presets are available. Alignment, shared contrast controls and overlays are not implemented.'},
+  {id: 'api-preview-contract-notes', title: 'Document omitted FITS data and preview limitations in the API', lane: 0, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: 'Swagger documents omitted flags, variance, zodiacal background, PSF, wavelength lookup, original headers and full WCS. PNGs use per-frame 8-bit display scaling, not calibrated science arrays.'},
+  {id: 'integration-browser-tests', title: 'Add local API tests and Playwright desktop/mobile checks', lane: 2, milestone: 2, stretch: false, initialStatus: 'Done',
+    detail: '23 backend tests, 7 frontend unit tests and 8 browser checks pass. Playwright/Chromium capture screenshots and test polling, batches and navigation with mocked archive responses. A separate live smoke check retrieved and rendered one real cutout.'},
+  {id: 'archive-quality-metadata', title: 'Preserve quality arrays and metadata for the processing handoff', lane: 0, milestone: 3, stretch: false,
+    detail: 'Coordinate with the image-processing developer on a richer cutout contract. Supply matching FLAGS, VARIANCE, ZODI, required PSF/spectral WCS information and original processing headers. The current S3 preview adapter retains only cropped IMAGE plus spatial WCS; do not derive scientific quality from PNGs.'},
+  {id: 'processing-quality-previews', title: 'Address noisy previews with quality-aware rendering and comparable wavelengths', lane: 1, milestone: 3, stretch: false,
+    detail: 'Image-processing workstream: inspect FLAGS and VARIANCE, select documented mask bits, estimate background, compute local wavelength and define consistent display limits for comparable frames. Retain useful source flags and explain quality/coverage limitations. Per-frame stretching currently exaggerates background noise; the screenshot difference is not yet diagnosed.'},
+  {id: 'viewer-quality-labels', title: 'Display processing quality summaries and wavelength comparability', lane: 2, milestone: 3, stretch: false,
+    detail: 'After the processing developer supplies quality results, extend the API and viewer with local wavelength, coverage and quality explanations plus appropriate selection/filter controls. Keep scientific decisions on the backend; do not label frames bad based on appearance alone.'}
+);
+const initialState = Object.fromEntries(tasks.filter(task => task.initialStatus).map(task =>
+  [task.id, {status: task.initialStatus, owner: '', note: task.detail || ''}]));
 const storageKey = 'spherex-sky-blink-tracker-v1';
 const empty = {status: 'To do', owner: '', note: ''};
 const find = id => document.getElementById(id);
-let state = {};
+let state = {...initialState};
 let storageAvailable = true;
 function normalize(snapshot) {
   if (!snapshot || snapshot.version !== 1 || !snapshot.tasks ||
@@ -176,7 +213,7 @@ function normalize(snapshot) {
 }
 try {
   const saved = localStorage.getItem(storageKey);
-  if (saved) state = normalize(JSON.parse(saved));
+  if (saved) state = {...initialState, ...normalize(JSON.parse(saved))};
 } catch {
   find('tracker-message').textContent = 'Saved progress could not be loaded. You can import a snapshot to restore it.';
 }
@@ -329,7 +366,7 @@ fileInput.addEventListener('change', async () => {
   try {
     const imported = normalize(JSON.parse(await file.text()));
     if (Object.keys(state).length && !confirm('Replace this browser’s progress with the imported snapshot?')) return;
-    state = imported;
+    state = {...initialState, ...imported};
     save();
     renderProgress();
     renderBoard();
