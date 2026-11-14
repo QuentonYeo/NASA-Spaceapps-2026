@@ -364,3 +364,13 @@ def test_validation_only_schedules_requested_exposures(service):
     page = completed(service, response.json()["sequenceId"])
     assert page["progress"] == {"total": 1, "ready": 1, "failed": 0}
     assert [frame["id"] for frame in page["frames"]] == ["selected"]
+
+
+def test_retention_budget_keeps_previews_and_reports_unavailable(service):
+    service.max_science_bytes = 1
+    service.archive = Archive([exposure()])
+    id = service.start(Region(0, 0, .1))["sequenceId"]
+    page = completed(service, id)
+    assert page["frames"][0]["status"] == "ready"
+    assert page["frames"][0]["scienceStatus"] == "retention_limit"
+    assert service.jobs.get(id).science == {}

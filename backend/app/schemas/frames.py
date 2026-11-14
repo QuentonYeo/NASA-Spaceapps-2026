@@ -59,14 +59,13 @@ class Frame(BaseModel):
     artifacts are transparent when quality extensions are present. Previews are
     unsuitable for quantitative comparisons. The optional aligned preview uses a common sky grid.
 
-    The S3 adapter currently retains only a cropped IMAGE and spatial WCS in
-    its temporary FITS, dropping other extensions/headers before rendering.
-    IRSA cutouts may contain those extensions, but this API does not expose or
-    retain them either. The source archive files remain unchanged and complete.
-    Future science processing must explicitly retrieve and preserve these data.
+    Science cutouts are retained separately for the spectra endpoint, subject to
+    the process-local sequence lifetime and 128 MiB per-sequence budget.
     """
+    scienceStatus: Literal["retained", "retention_limit", "unavailable"] = "unavailable"
     id: str
-    visit: int
+    visit: int = Field(description="Compatibility alias for observationGroupId: zero-based ten-day-gap heuristic, not a verified orbital pass.")
+    observationGroupId: int = Field(default=0, description="Zero-based observation group using a ten-day-gap heuristic; not a verified orbital pass.")
     observedAtUtc: str
     release: str
     detector: str

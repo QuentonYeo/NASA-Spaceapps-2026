@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,12 +15,13 @@ logger = logging.getLogger(__name__)
 
 class FramesService:
     def __init__(self, archive: Archive, cutouts: Cutouts, renderer: Renderer,
-                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12, cutout_cache: CutoutCache | None = None):
+                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12, cutout_cache: CutoutCache | None = None, max_science_bytes=128 * 1024 * 1024):
         self.archive, self.cutouts, self.renderer, self.jobs = archive, cutouts, renderer, jobs
         self.max_frames, self.visit_gap_days = max_frames, visit_gap_days
         self.cutout_workers = cutout_workers
         self.batch_size = batch_size
         self.cutout_cache = cutout_cache
+        self.max_science_bytes = max_science_bytes
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
@@ -112,15 +114,22 @@ class FramesService:
                 job.finished = time.monotonic()
 
     def _frame(self, job, exposure, visit):
-        result = {"id": exposure.id, "visit": visit, "observedAtUtc": exposure.observed_at,
+        result = {"id": exposure.id, "visit": visit, "observationGroupId": visit, "observedAtUtc": exposure.observed_at,
                   "release": exposure.release, "detector": exposure.detector, "wavelengthUm": None,
                   "sourceFitsUrl": exposure.url, "previewUrl": None, "coverage": None,
-                  "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
+                  "scienceStatus": "unavailable", "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
         try:
-            if self.cutout_cache is None:
-                pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
-            else:
-                pixels = self.cutout_cache.prepare(exposure, job.region, self.cutouts, self.renderer)
+            # Retain native science before producing any display-only reprojection.
+            cutout = self.cutouts.fetch(exposure, job.region)
+            with job.lock:
+                if job.science_bytes + len(cutout) <= self.max_science_bytes:
+                    job.science[exposure.id] = cutout
+                    job.science_versions[exposure.id] = hashlib.sha256(cutout).hexdigest()
+                    job.science_bytes += len(cutout)
+                    result["scienceStatus"] = "retained"
+                else:
+                    result["scienceStatus"] = "retention_limit"
+            pixels = self.renderer.prepare(cutout, job.region)
             group = (exposure.release, exposure.detector, pixels.unit)
             with job.lock:
                 if pixels.limits[1] > pixels.limits[0]:

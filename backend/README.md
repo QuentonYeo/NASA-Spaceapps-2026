@@ -36,8 +36,8 @@ requested. POST `/api/frames/{sequenceId}/batches` with `{"after": scheduledCoun
 to schedule the next batch, then resume polling from the previous `nextCursor`.
 `scheduledCount` is the exposure reservation offset; `nextCursor` is the completion
 log offset. They are not interchangeable. Repeating an already reserved batch offset
-is idempotent. A future offset or an unavailable batch returns 409. Visits are
-computed across the full discovered list, so batch boundaries do not create visits.
+is idempotent. A future offset or an unavailable batch returns 409. Observation groups are
+computed across the full discovered list, so batch boundaries do not create groups.
 Jobs awaiting more input expire after the normal retention interval.
 
 Each ready frame contains `imageData`, a complete `data:image/png;base64,...` value
@@ -48,19 +48,21 @@ not a guarantee of successful discovery. HTTP-level errors use the same error
 shape. `Retry-After` is provided where applicable. Responses are not HTTP-cached.
 
 Discovery includes exposures covering the center, not guaranteed full-square
-coverage. Stable archive IDs remove duplicates. DR1 is queried by default; a visit
-starts when the gap between consecutive exposures exceeds 10 days. Visits group
-frames and never discard distinct exposures. The 300-frame limit fails the job
+coverage. Stable archive IDs remove duplicates. DR1 is queried by default; an observation group
+starts when the gap between consecutive exposures exceeds 10 days. This heuristic
+is not a verified orbital pass. Groups never discard distinct exposures. The 300-frame limit fails the job
 explicitly rather than truncating it.
 
-These are **native-grid, unaligned discovery previews**. Each ready frame includes
-a per-frame percentile/asinh preview and, when available, a shared-scale preview.
-The first usable frame with a nonzero display range sets the fixed limits for its
-detector, release and brightness unit for the rest of the sequence. Known
-instrument artifacts and invalid variance are masked when the cutout supplies
-quality arrays. Local wavelength is reported when the spectral WCS is usable.
-Previews do not apply background subtraction or alignment. FITS cutouts can be reused across jobs through the bounded in-memory cache.
-Encoded PNGs are retained until job expiry.
+Each ready frame includes native per-frame and, when available, shared-scale
+previews. The first usable nonconstant frame fixes display limits by detector,
+release and brightness unit. Upstream aligned blink adds display-only north-up
+query-grid previews; native imageData/grid and alignedImageData/alignedGrid remain
+separate. Quality masking and local wavelengths are applied when supported.
+Previews do not subtract background. Original native science FITS are retained
+before rendering, subject to sequence TTL and the science storage budget. Region
+extraction and sky projection always use that native IMAGE WCS, never the aligned
+display grid. PNGs remain display products rather than photometric measurements.
+FITS cutouts can be reused across jobs through the bounded in-memory cache.
 
 ## Configuration
 
@@ -75,7 +77,7 @@ Environment variables read at app startup:
 | `SEARCH_CACHE_PATH` | `~/.cache/spherex-sky-blink/searches-v1.sqlite3` | Local checkpoint database |
 | `CUTOUT_CACHE_BYTES` | `134217728` | In-memory FITS cache budget in bytes (0 disables it) |
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
-| `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new visit |
+| `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new observation group |
 | `CUTOUT_WORKERS` | `4` | Concurrent cutouts per running job |
 | `MAX_JOBS` | `8` | Maximum retained jobs, including queued and completed |
 | `JOB_TTL_SECONDS` | `1800` | Retention after completion |
@@ -132,8 +134,8 @@ uv run uvicorn app.main:app --reload
 ```
 
 Use `CUTOUT_PROVIDER=irsa` to switch back. Both providers return the same inline
-PNG API contract. S3 reads only the spatial IMAGE section needed for the preview;
-it does not fetch the PSF extension or process variance/flags. Native pixel boxes
+PNG API contract. S3 reads matching native IMAGE, FLAGS, VARIANCE and ZODI sections and retains
+WCS-WAVE, primary metadata, and primary/alternate WCS headers. PSF/EPSF is omitted. Native pixel boxes
 may differ slightly at boundaries from IRSA cutouts. Neither provider aligns images.
 
 IRSA uses one thread-safe HTTPX client per app with a connection pool sized for both
@@ -163,3 +165,68 @@ ordering and upstream caches make it indicative rather than a controlled benchma
 Initial local sample (eight WISE 0855 exposures, four workers): fresh IRSA 46.97 s,
 pooled IRSA 16.41 s, S3 6.26 s. All rendered successfully. These are one-run results,
 not a guarantee; fixed ordering, remote caching, and network variability affect them.
+
+## Region extraction milestone
+
+Frontend annotation and explorer integration belongs to the separate spectral-explorer
+branch. This branch implements the backend contract; existing previews are preserved.
+A reference native-pixel circle is frozen to an ICRS sky circle using the geometric
+mean of local reference pixel scales. This approximation and the authoritative
+sky aperture are returned explicitly. Measurements never depend on viewer navigation.
+
+`POST /api/frames/{sequenceId}/spectra` accepts:
+
+```json
+{"sequenceId":"same-as-url","referenceFrameId":"archive-frame-id","circle":{"x":14,"y":14,"radiusPixels":2,"innerRadiusPixels":4,"outerRadiusPixels":6},"observationGroupIds":[0]}
+```
+
+The response is a snapshot of completed downloads, including unavailable results,
+pending count, provenance, observation time, quality policy, usable source/background
+counts and approximate coverage. Discovery is **query-centre-only**, not complete
+FOV discovery. No missing exposures or wavelength samples are synthesized. Download
+more batches and extract again to include later arrivals.
+
+Science FITS bytes are retained in the process-local job (same TTL as previews),
+up to 128 MiB per sequence. `scienceStatus` on each preview reports retention;
+exceeding the budget preserves previews and produces an unavailable spectral result.
+Restarting the server loses sequences. Both providers preserve available science
+planes across the requested FOV, clipped to native detector coverage. Missing planes
+or unsupported units/spectral WCS produce unavailable measurements. S3 preserves
+alternate CRPIX shifts and the WCS-WAVE table without shifting table values.
+
+The estimator is mean(IMAGE - ZODI) in the aperture minus the annulus mean,
+in MJy/sr. Every nonzero FLAGS pixel is excluded in this conservative first policy,
+including SOURCE. Independent variance propagates as sum(var)/N^2 for each mean;
+calibration, correlated noise, and background-model systematics are excluded.
+No aperture correction, PSF fitting, integrated source flux, cube, elemental
+identification, or abundance inference is provided. Regions use pixel-centre
+inclusion rather than fractional weights; coverage uses local pixel area and can
+be approximate for tiny circles or distorted WCS. Wavelength/bandwidth are means
+of local spectral WCS coordinates over accepted aperture pixels; the wavelength
+range is included rather than treating a wide region as monochromatic.
+
+Companion POST endpoints `/frames/{frameId}/coordinate` and
+`/frames/{frameId}/projection` convert native preview pixels to sky coordinates
+and return native boundary polygons. PNG row zero corresponds to FITS array row
+zero; do not invert the displayed y coordinate.
+
+The optional body `sequenceId` must match the URL. `referenceFrameId` and selected
+group IDs must belong to the same sequence; unavailable reference science returns
+409. Annulus radii may both be omitted to use 2x/3x aperture radius. Supply both to
+customize them. Group IDs are zero based. `visit` remains a compatibility alias;
+new frame metadata includes `observationGroupId`.
+
+Response `region` has ra/dec (degrees), radiusArcsec/innerArcsec/outerArcsec.
+`pendingFrames` is an integer count of selected discovered exposures not completed.
+Measurements may be ok, partial, or unavailable. Value, uncertainty, wavelengthUm,
+bandwidthUm, wavelengthRangeUm (two-number array), coverage, backgroundCoverage,
+sourcePixels, backgroundPixels and mjd are nullable. Observation UTC always falls
+back to discovery time if DATE-AVG is absent. All available samples include frame
+and observation group IDs and archive provenance. Unavailable samples carry reasons.
+
+Caches are process-local, expire with the sequence, and hold up to 2048 exposure
+measurements per job. Keys include resolved region, fixed quality/background
+settings, exposure ID, retained FITS SHA-256 and processing version. Group selection
+is independent of those keys, so switching groups reuses measurements. `cacheHits`
+and `processingVersion` are returned for inspection. RePOST on progressive downloads
+to add new measurements; navigation and local group filtering require no request.

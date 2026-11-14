@@ -1,0 +1,20 @@
+﻿<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Region spectra backend | SPHEREx Sky Blink</title>
+<style>body{max-width:900px;margin:40px auto;padding:0 24px;font:16px/1.6 system-ui;color:#182b3d}code{overflow-wrap:anywhere}h1,h2{line-height:1.2}</style>
+<main><h1>Region spectra backend</h1>
+<p>Extract a background-corrected surface-brightness measurement from the same circular sky region in each downloaded native SPHEREx exposure. This backend feature supplies the separate spectral explorer and catalogue integrations.</p>
+<h2>Selection and API</h2>
+<p>POST <code>/api/frames/{sequenceId}/spectra</code> with a referenceFrameId, a native-pixel circle (x, y, radiusPixels, optional innerRadiusPixels and outerRadiusPixels), and observationGroupIds. The optional body sequenceId must match the URL. Omitting both background radii defaults to twice and three times the aperture radius. Groups use the ten-day-gap heuristic, not verified orbital passes.</p>
+<p>The reference circle resolves to an ICRS circle using the geometric mean of local reference pixel scales. Its authoritative sky coordinates are mapped independently through each retained frame WCS. Unavailable references, unknown groups, and mismatched sequences are explicit errors. Missing measurements are unavailable, never invented.</p>
+<h2>Native science and aligned display</h2>
+<p>Original FITS bytes are retained before preparing any preview. IMAGE, FLAGS, VARIANCE, ZODI, primary metadata, spatial WCS and WCS-WAVE survive S3 cropping; alternate reference pixels shift with the crop. Native imageData/grid and upstream alignedImageData/alignedGrid remain separate. Aligned blink is display-only and never replaces retained science.</p>
+<p>Extraction circles, coordinate conversion, catalogue point adapters and aperture projection always use native IMAGE WCS. Native overlays must be shown on a native image or hidden in aligned mode. The projection endpoint returns boundary polygons in native image-edge coordinates (zero-based pixel centre plus 0.5); the viewer clips them to actual native image bounds.</p>
+<h2>Estimator and cache</h2>
+<p>The estimator is mean(IMAGE minus ZODI) in the aperture minus the background-annulus mean, in MJy/sr. All nonzero FLAGS are rejected, including SOURCE. Uncertainty propagates independent pixel variance from both means. Local wavelength, bandwidth and wavelength range are evaluated through spectral WCS over accepted aperture pixels.</p>
+<p>Measurements are cached by resolved region, settings, exposure ID, retained FITS digest and processing version. Group filtering reuses measurements; new downloads add only new measurements. Frame navigation does not trigger extraction. Retention is process-local, with 128 MiB science data and 2048 cached measurements per sequence, expiring with the job.</p>
+<h2>Eligibility and limits</h2>
+<p>Discovery covers the query centre, not the full requested FOV. Each native cutout is clipped to detector coverage. Coverage uses pixel-centre inclusion and approximate local pixel area. Missing planes, unsupported units or unusable spectral WCS produce unavailable samples. There is no PSF/aperture correction, total-flux estimate, whole-field cube, abundance inference, or live calibration/performance claim. Independent-pixel uncertainty excludes correlated noise, calibration and background-model systematics.</p>
+<h2>Validation and implementation details</h2>
+<p>Synthetic FITS tests exercise tabular wavelength lookup after cropping, shifted WCS, variance, quality/coverage failures, progressive cache reuse and invalidation, scoping, retention limits, and coexistence of aligned previews with unchanged native science.</p>
+<p>Detailed request/response and retention notes: <a href="../project-planning/region-spectra-handoff.md">region spectra handoff</a>. Related display behavior: <a href="aligned-blink.html">Aligned Blink</a>.</p></main></html>

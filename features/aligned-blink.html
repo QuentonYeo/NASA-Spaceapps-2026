@@ -28,6 +28,7 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <a href="#workflow">Using the viewer</a><a href="#processing">Image processing</a><a href="#eligibility">Frame eligibility</a><a href="#archive">Archive behavior</a><a href="#validation">Validation and limits</a>
 </nav>
 <section id="workflow">
+<p>Region spectra retain the original native science FITS before display reprojection. Native <code>imageData/grid</code> and aligned <code>alignedImageData/alignedGrid</code> are separate; extraction and catalogue overlays use native IMAGE WCS. Use a native spectral image for those interactions or hide native overlays in aligned mode. <a href="region-spectra.html">Region spectra backend</a></p>
 <h2>Using the viewer</h2>
 <p>Open <strong>Validate a known object</strong> from Home to load a prepared comparison in Aligned Blink. For a custom search, choose <strong>Explore for movement</strong> and select <strong>Aligned blink</strong> in the viewer. <a href="viewer-workflows.html">Viewer workflows</a></p>
 <p>Turn on <strong>Gaia reference stars</strong> to mark expected catalogue positions on the aligned frames. <a href="gaia-reference-stars.html">Gaia reference stars</a></p>

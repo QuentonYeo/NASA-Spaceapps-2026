@@ -22,6 +22,11 @@ class Job:
     status: str = "queued"
     total: int = 0
     results: list[dict] = field(default_factory=list)
+    science: dict[str, bytes] = field(default_factory=dict)
+    science_bytes: int = 0
+    science_versions: dict[str, str] = field(default_factory=dict)
+    measurement_cache: dict[tuple, dict] = field(default_factory=dict)
+    extraction_lock: RLock = field(default_factory=RLock)
     exposures: list[tuple[Exposure, int]] = field(default_factory=list)
     scheduled: int = 0
     display_limits: dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
