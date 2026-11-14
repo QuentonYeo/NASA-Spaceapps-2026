@@ -2,4 +2,10 @@
 name = "spherex-blink-backend"
 version = "0.1.0"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "astropy>=8.0.2",
+    "astroquery>=0.4.11",
+    "firefly-client>=3.4.0",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+]
