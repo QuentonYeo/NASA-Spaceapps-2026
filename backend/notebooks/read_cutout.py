@@ -49,25 +49,38 @@ PIXEL_SCALE_ARCSEC = 6.15
 #   erase the very objects we want to find.
 # - FULLSAMPLE, DICHROIC, PHANMISS: informational / mild.
 BAD_FLAGS = {
-    "SUR_ERROR", "NONFUNC", "MISSING_DATA", "HOT", "COLD", "NONLINEAR",
-    "PERSIST", "CROSSTALK", "GHOST", "GHOST_FPA", "GHOST_EXT", "STREAK",
-    "BLOOM", "SNOWBALL", "HALO",
+    "SUR_ERROR",
+    "NONFUNC",
+    "MISSING_DATA",
+    "HOT",
+    "COLD",
+    "NONLINEAR",
+    "PERSIST",
+    "CROSSTALK",
+    "GHOST",
+    "GHOST_FPA",
+    "GHOST_EXT",
+    "STREAK",
+    "BLOOM",
+    "SNOWBALL",
+    "HALO",
 }
 
 
 @dataclass
 class Cutout:
     """Everything the app needs from one frame at one position."""
+
     detector: int
-    mjd: float                  # mid-exposure, UTC
+    mjd: float  # mid-exposure, UTC
     version: str
-    image: np.ndarray           # MJy/sr, zodi NOT subtracted
+    image: np.ndarray  # MJy/sr, zodi NOT subtracted
     flags: np.ndarray
-    flag_bits: dict[str, int]   # {'HOT': 10, ...} from this frame's FLAGS header
+    flag_bits: dict[str, int]  # {'HOT': 10, ...} from this frame's FLAGS header
     variance: np.ndarray
     zodi: np.ndarray
-    wcs: WCS                    # celestial WCS of these pixels
-    wavelength_um: float        # at the target position
+    wcs: WCS  # celestial WCS of these pixels
+    wavelength_um: float  # at the target position
     bandwidth_um: float
     psf_fwhm_arcsec: float
 
@@ -77,13 +90,17 @@ def flag_bits(flags_header: fits.Header) -> dict[str, int]:
     return {flags_header[key]: int(key[4:]) for key in flags_header["MSKN*"]}
 
 
-def bad_pixel_mask(flags: np.ndarray, bits: dict[str, int], bad=BAD_FLAGS) -> np.ndarray:
+def bad_pixel_mask(
+    flags: np.ndarray, bits: dict[str, int], bad=BAD_FLAGS
+) -> np.ndarray:
     """True where any bad flag bit is set."""
     bad_bits = sum(1 << bits[name] for name in bad if name in bits)
     return (flags & bad_bits) != 0
 
 
-def wavelength_at(hdul: fits.HDUList, x: float, y: float) -> tuple[u.Quantity, u.Quantity]:
+def wavelength_at(
+    hdul: fits.HDUList, x: float, y: float
+) -> tuple[u.Quantity, u.Quantity]:
     """Wavelength and bandwidth at pixel (x, y), from the alternate WCS 'W'.
 
     SPHEREx uses linear variable filters, so wavelength changes across the
@@ -138,8 +155,14 @@ if __name__ == "__main__":
     cutout = parse_cutout(hdul, target)
     print("flag bits:", cutout.flag_bits)
     bad = bad_pixel_mask(cutout.flags, cutout.flag_bits)
-    print(f"detector D{cutout.detector}  MJD {cutout.mjd:.4f}  version {cutout.version}")
-    print(f"wavelength at target {cutout.wavelength_um:.3f} um "
-          f"(bandwidth {cutout.bandwidth_um:.3f} um)")
-    print(f"PSF FWHM {cutout.psf_fwhm_arcsec:.2f}\"  image {cutout.image.shape}  "
-          f"bad pixels {bad.sum()} / {bad.size}")
+    print(
+        f"detector D{cutout.detector}  MJD {cutout.mjd:.4f}  version {cutout.version}"
+    )
+    print(
+        f"wavelength at target {cutout.wavelength_um:.3f} um "
+        f"(bandwidth {cutout.bandwidth_um:.3f} um)"
+    )
+    print(
+        f'PSF FWHM {cutout.psf_fwhm_arcsec:.2f}"  image {cutout.image.shape}  '
+        f"bad pixels {bad.sum()} / {bad.size}"
+    )

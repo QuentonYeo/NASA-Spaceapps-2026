@@ -29,12 +29,17 @@ MAX_DWAVE_UM = 0.05
 
 def target_grid(coord: SkyCoord, fov: u.Quantity) -> tuple[WCS, tuple[int, int]]:
     """A north-up TAN grid centred on `coord` with SPHEREx-sized pixels."""
-    n = int(np.ceil(fov.to_value(u.arcsec) / PIXEL_SCALE_ARCSEC)) | 1  # odd: target on a pixel centre
+    n = (
+        int(np.ceil(fov.to_value(u.arcsec) / PIXEL_SCALE_ARCSEC)) | 1
+    )  # odd: target on a pixel centre
     wcs = WCS(naxis=2)
     wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
     wcs.wcs.crval = [coord.ra.deg, coord.dec.deg]
     wcs.wcs.crpix = [(n + 1) / 2, (n + 1) / 2]  # FITS pixels are 1-based
-    wcs.wcs.cdelt = [-PIXEL_SCALE_ARCSEC / 3600, PIXEL_SCALE_ARCSEC / 3600]  # RA increases to the left
+    wcs.wcs.cdelt = [
+        -PIXEL_SCALE_ARCSEC / 3600,
+        PIXEL_SCALE_ARCSEC / 3600,
+    ]  # RA increases to the left
     return wcs, (n, n)
 
 
@@ -62,16 +67,20 @@ def align(cutout: Cutout, grid: WCS, shape) -> tuple[np.ndarray, np.ndarray]:
     return image, variance
 
 
-def closest_pair(cutouts_a: list[Cutout], cutouts_b: list[Cutout],
-                 max_dwave_um: float = MAX_DWAVE_UM):
+def closest_pair(
+    cutouts_a: list[Cutout], cutouts_b: list[Cutout], max_dwave_um: float = MAX_DWAVE_UM
+):
     """Indexes (i, j) of the frames from two visits with the closest wavelength.
 
     Like with like: same detector is assumed by the caller. Returns None if no
     pair is within `max_dwave_um`. Otherwise the difference image would light
     up every star just because of the colour change.
     """
-    dwave = np.abs(np.subtract.outer([c.wavelength_um for c in cutouts_a],
-                                     [c.wavelength_um for c in cutouts_b]))
+    dwave = np.abs(
+        np.subtract.outer(
+            [c.wavelength_um for c in cutouts_a], [c.wavelength_um for c in cutouts_b]
+        )
+    )
     i, j = np.unravel_index(np.argmin(dwave), dwave.shape)
     return (i, j) if dwave[i, j] <= max_dwave_um else None
 
@@ -108,14 +117,18 @@ if __name__ == "__main__":
     # S3 avoids loading IRSA's cutout servers (see fetch_cutouts.py).
     cutouts_a = fetch_many(list(rows_a["uri"]), target, fov, method="s3")
     cutouts_b = fetch_many(list(rows_b["uri"]), target, fov, method="s3")
-    print(f"visit {first}: {len(cutouts_a)} frames, visit {last}: {len(cutouts_b)} frames")
+    print(
+        f"visit {first}: {len(cutouts_a)} frames, visit {last}: {len(cutouts_b)} frames"
+    )
 
     pair = closest_pair(cutouts_a, cutouts_b)
     if pair is None:
         raise SystemExit(f"no frame pair within {MAX_DWAVE_UM} um")
     a, b = cutouts_a[pair[0]], cutouts_b[pair[1]]
-    print(f"pair: {a.wavelength_um:.3f} um (MJD {a.mjd:.1f}) vs "
-          f"{b.wavelength_um:.3f} um (MJD {b.mjd:.1f})")
+    print(
+        f"pair: {a.wavelength_um:.3f} um (MJD {a.mjd:.1f}) vs "
+        f"{b.wavelength_um:.3f} um (MJD {b.mjd:.1f})"
+    )
 
     grid, shape = target_grid(target, fov)
     image_a, var_a = align(a, grid, shape)
@@ -130,8 +143,10 @@ if __name__ == "__main__":
     for k in np.argsort(np.nan_to_num(np.abs(sig)).ravel())[::-1][:5]:
         y, x = np.unravel_index(k, shape)
         sky = grid.pixel_to_world(x, y)
-        print(f"  pixel ({x}, {y})  {sig[y, x]:+.1f} sigma  "
-              f"RA {sky.ra.deg:.4f} Dec {sky.dec.deg:.4f}  A {image_a[y, x]:+.3f}  B {image_b[y, x]:+.3f}")
+        print(
+            f"  pixel ({x}, {y})  {sig[y, x]:+.1f} sigma  "
+            f"RA {sky.ra.deg:.4f} Dec {sky.dec.deg:.4f}  A {image_a[y, x]:+.3f}  B {image_b[y, x]:+.3f}"
+        )
 
     # Keep the aligned frames for render_png.py.
     aligned = [align(c, grid, shape)[0] for c in cutouts_a + cutouts_b]

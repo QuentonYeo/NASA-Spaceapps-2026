@@ -40,25 +40,36 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 from find_frames import cutout_url, s3_path
-from read_cutout import PIXEL_SCALE_ARCSEC, Cutout, flag_bits, parse_cutout, wavelength_at
+from read_cutout import (
+    PIXEL_SCALE_ARCSEC,
+    Cutout,
+    flag_bits,
+    parse_cutout,
+    wavelength_at,
+)
 
 # IRSA is a shared public service: keep parallel requests modest.
 MAX_WORKERS = 8
 
 # s3fs options. Without a larger block, astropy issues one tiny range request
 # per image row, which is very slow over long distances.
-S3_OPTIONS = {"anon": True, "default_block_size": 512 * 1024, "default_cache_type": "blockcache"}
+S3_OPTIONS = {
+    "anon": True,
+    "default_block_size": 512 * 1024,
+    "default_cache_type": "blockcache",
+}
 
 
-def fetch_via_cutout_service(uri: str, coord: SkyCoord, size: u.Quantity,
-                             retries: int = 6) -> fits.HDUList:
+def fetch_via_cutout_service(
+    uri: str, coord: SkyCoord, size: u.Quantity, retries: int = 6
+) -> fits.HDUList:
     """Method A. Returns the cutout MEF held in memory."""
     url = cutout_url(uri, coord, size)
     for attempt in range(retries):
         response = httpx.get(url, timeout=120, follow_redirects=True)
         if response.status_code != 503:
             break
-        time.sleep(2 ** attempt)  # back off: 1, 2, 4, 8 ... seconds
+        time.sleep(2**attempt)  # back off: 1, 2, 4, 8 ... seconds
     response.raise_for_status()
     return fits.open(io.BytesIO(response.content))
 
@@ -98,13 +109,16 @@ def fetch_via_s3(uri: str, coord: SkyCoord, size: u.Quantity) -> Cutout:
         )
 
 
-def fetch_many(uris, coord: SkyCoord, size: u.Quantity, method: str = "cutout") -> list[Cutout]:
+def fetch_many(
+    uris, coord: SkyCoord, size: u.Quantity, method: str = "cutout"
+) -> list[Cutout]:
     """Fetch many frames in parallel with bounded concurrency.
 
     Threads suit this work: it is network-bound, so the GIL is not the
     bottleneck. In the FastAPI app, run this in a thread pool (or use async
     httpx with a semaphore) so the event loop is never blocked.
     """
+
     def one(uri):
         if method == "s3":
             return fetch_via_s3(uri, coord, size)
@@ -131,11 +145,15 @@ if __name__ == "__main__":
     for method in ("cutout", "s3"):
         start = time.perf_counter()
         cutouts = fetch_many(uris, target, size, method)
-        print(f"{method:6s} {len(cutouts)} frames in {time.perf_counter() - start:.1f} s")
+        print(
+            f"{method:6s} {len(cutouts)} frames in {time.perf_counter() - start:.1f} s"
+        )
 
     # Both methods should agree on the science values.
     a = parse_cutout(fetch_via_cutout_service(uris[0], target, size), target)
     b = fetch_via_s3(uris[0], target, size)
     print(f"wavelength: cutout {a.wavelength_um:.4f} um, s3 {b.wavelength_um:.4f} um")
-    print(f"target pixel value: cutout {a.image[a.wcs.world_to_array_index(target)]:.4f}, "
-          f"s3 {b.image[b.wcs.world_to_array_index(target)]:.4f}")
+    print(
+        f"target pixel value: cutout {a.image[a.wcs.world_to_array_index(target)]:.4f}, "
+        f"s3 {b.image[b.wcs.world_to_array_index(target)]:.4f}"
+    )

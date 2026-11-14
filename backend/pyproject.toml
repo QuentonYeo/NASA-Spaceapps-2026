@@ -6,6 +6,8 @@ dependencies = [
     "astropy>=8.0.2",
     "astroquery>=0.4.11",
     "firefly-client>=3.4.0",
+    "httpx>=0.28.1",
     "matplotlib>=3.11.2",
     "numpy>=2.5.4",
+    "reproject>=0.21.0",
 ]

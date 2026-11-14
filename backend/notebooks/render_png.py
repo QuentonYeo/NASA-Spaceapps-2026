@@ -22,8 +22,13 @@ import json
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.visualization import (AsinhStretch, ImageNormalize, LinearStretch,
-                                   ManualInterval, PercentileInterval)
+from astropy.visualization import (
+    AsinhStretch,
+    ImageNormalize,
+    LinearStretch,
+    ManualInterval,
+    PercentileInterval,
+)
 
 from find_frames import OUTPUT_DIR
 
@@ -33,8 +38,14 @@ def shared_limits(frames: np.ndarray, percent: float = 99.5) -> tuple[float, flo
     return PercentileInterval(percent).get_limits(frames[np.isfinite(frames)])
 
 
-def render_png(data: np.ndarray, path, vmin: float, vmax: float,
-               cmap: str = "gray", stretch=AsinhStretch()) -> None:
+def render_png(
+    data: np.ndarray,
+    path,
+    vmin: float,
+    vmax: float,
+    cmap: str = "gray",
+    stretch=AsinhStretch(),
+) -> None:
     """Write `data` as an RGBA PNG. NaN pixels become transparent.
 
     `origin="lower"` keeps FITS orientation (row 0 at the bottom), so the PNG
@@ -57,7 +68,9 @@ if __name__ == "__main__":
         render_png(frame, out_dir / f"frame_{i:02d}.png", vmin, vmax)
 
     # Significance map: symmetric limits, linear stretch, diverging colours.
-    render_png(sig, out_dir / "significance.png", -5, 5, cmap="PuOr_r", stretch=LinearStretch())
+    render_png(
+        sig, out_dir / "significance.png", -5, 5, cmap="PuOr_r", stretch=LinearStretch()
+    )
 
     # The browser needs the grid WCS to place the PNGs on the sky.
     (out_dir / "wcs.json").write_text(json.dumps({"header": str(saved["grid_header"])}))

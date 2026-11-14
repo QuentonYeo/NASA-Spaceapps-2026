@@ -116,8 +116,10 @@ if __name__ == "__main__":
     # within one detector, so this tells us how many usable pairs exist.
     summary = frames.group_by(["visit", "detector"])
     for key, group in zip(summary.groups.keys, summary.groups):
-        print(f"visit {key['visit']}  {key['detector']}  {len(group):3d} frames  "
-              f"MJD {group['mjd_start'].min():.1f}-{group['mjd_start'].max():.1f}")
+        print(
+            f"visit {key['visit']}  {key['detector']}  {len(group):3d} frames  "
+            f"MJD {group['mjd_start'].min():.1f}-{group['mjd_start'].max():.1f}"
+        )
 
     # Save for the next scripts so they don't re-query IRSA.
     OUTPUT_DIR.mkdir(exist_ok=True)
