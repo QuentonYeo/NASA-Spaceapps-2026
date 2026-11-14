@@ -95,3 +95,19 @@ export async function startSequence(query: SkyQuery, signal: AbortSignal): Promi
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {
   return request<Accepted>(`/api/frames/${sequenceId}/batches`, signal, { after });
 }
+
+export interface GaiaSource {
+  sourceId: string;
+  ra: number;
+  dec: number;
+  refEpoch: number;
+  pmRa: number | null;
+  pmDec: number | null;
+  gMagnitude: number;
+}
+
+export interface GaiaCatalogue { sources: GaiaSource[]; limited: boolean }
+
+export function getGaiaCatalogue(sequenceId: string, signal: AbortSignal) {
+  return request<GaiaCatalogue>(`/api/frames/${encodeURIComponent(sequenceId)}/gaia`, signal);
+}

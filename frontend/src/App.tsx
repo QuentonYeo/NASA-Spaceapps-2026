@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useFrames } from './state/useFrames';
 import type { Frame } from './api/frames';
+import { GaiaMarkers } from './GaiaOverlay';
+import { useGaiaCatalogue } from './state/useGaiaCatalogue';
 import './App.css';
 
 function App() {
@@ -14,6 +16,7 @@ function App() {
   const [zoom, setZoom] = useState('4');
   const [contrast, setContrast] = useState('shared');
   const [blinkMode, setBlinkMode] = useState(false);
+  const gaia = useGaiaCatalogue(blinkMode ? sequence.page?.sequenceId : undefined);
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
   const [candidateId, setCandidateId] = useState('');
   const [playing, setPlaying] = useState(false);
@@ -187,7 +190,16 @@ function App() {
             setCandidateId('');
           }}>Add frame</button>
         </div>}
-        <div className="image-stage" tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
+        {blinkMode && reference && <div className="gaia-controls">
+          <label><input type="checkbox" checked={gaia.enabled} onChange={(event) => gaia.toggle(event.target.checked)} /> Gaia reference stars</label>
+          {gaia.enabled && <span role="status">
+            {gaia.loading ? 'Looking up Gaia DR3 sources…' : gaia.error
+              ? gaia.error + ' Toggle off and on to retry.'
+              : gaia.catalogue?.sources.length === 0 ? 'No catalogue sources found in this field.'
+              : gaia.catalogue?.limited ? 'Showing the brightest catalogue matches in this field.' : ''}
+          </span>}
+        </div>}
+        <div className={blinkMode ? "image-stage aligned-stage" : "image-stage"} tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
             event.preventDefault();
@@ -197,9 +209,15 @@ function App() {
               move(index + (event.key === 'ArrowRight' ? 1 : -1));
             }
           }}>
-          {visible ? <img style={zoom === 'fit' ? { width: 'auto', height: '85%' } : {
+          {blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+            style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
+            <img src={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} />
+            {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers catalogue={gaia.catalogue}
+              query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
+              side={visibleGrid.width} />}
+          </div> : visible ? <img style={zoom === 'fit' ? { width: 'auto', height: '85%' } : {
             width: (visibleGrid?.width ?? 29) * Number(zoom), height: 'auto',
-          }} src={blinkMode ? visible.alignedImageData ?? undefined : preview(visible)} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} /> :
+          }} src={preview(visible)} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} /> :
             <div className="empty-state"><span className="crosshair" aria-hidden="true">+</span><h3>{blinkMode && ready.length ? 'No aligned frames available' : sequence.busy ? 'Listening for the first frame' : 'Start with a sky location'}</h3><p>{sequence.busy ? 'Images will appear here while the rest load.' : 'Enter coordinates or use the example target, then find observations.'}</p></div>}
           <span className="stage-label">{blinkMode && visible ? `FRAME ${activeIndex + 1} / ${blinkCount}` : 'SPHEREx / INFRARED'}</span><span className="stage-label right">{visibleGrid ? `${visibleGrid.width} × ${visibleGrid.height} PX` : 'AWAITING SIGNAL'}</span>
         </div>

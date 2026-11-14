@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.exception_handlers import register_exception_handlers
@@ -11,6 +12,7 @@ from app.services.irsa.cutouts import IrsaCutouts
 from app.services.irsa.s3_cutouts import S3Cutouts
 from app.services.jobs import LocalJobs
 from app.services.rendering import FitsRenderer
+from app.services.search_cache import SearchCache
 
 
 def create_app(service=None) -> FastAPI:
@@ -26,8 +28,13 @@ def create_app(service=None) -> FastAPI:
             cutouts = (S3Cutouts(connections=2 * workers) if provider == "s3"
                        else IrsaCutouts(connections=2 * workers))
             cache = CutoutCache(int(os.getenv("CUTOUT_CACHE_BYTES", str(128 * 1024 * 1024))))
+            search_bytes = int(os.getenv("SEARCH_CACHE_BYTES", str(256 * 1024 * 1024)))
+            search_cache = SearchCache(
+                Path(os.getenv("SEARCH_CACHE_PATH", str(Path.home() / ".cache" / "spherex-sky-blink" / "searches-v1.sqlite3"))),
+                search_bytes, int(os.getenv("SEARCH_CACHE_TTL_SECONDS", str(7 * 86400))),
+            ) if search_bytes > 0 else None
             jobs = LocalJobs(max_jobs=int(os.getenv("MAX_JOBS", "8")),
-                             ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")))
+                             ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")), search_cache=search_cache)
             app.state.frames = FramesService(
                 IrsaArchive(tuple(os.getenv("IRSA_COLLECTIONS", "spherex_dr1").split(","))),
                 cutouts, FitsRenderer(), jobs,

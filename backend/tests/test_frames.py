@@ -326,3 +326,29 @@ def test_aligned_preview_registers_shifted_exposures_and_preserves_mask():
         assert np.unravel_index(image[:, :, 0].argmax(), (9, 9)) == (6, 4)
         assert image[3, 3, 3] == 0
     assert aligned[1][4, 8, 3] == 0
+
+
+def test_search_checkpoint_restores_previews_and_resumes_next_batch(tmp_path):
+    from app.services.search_cache import SearchCache
+
+    cache_path = tmp_path / "searches.sqlite3"
+    region = Region(0, 0, .1)
+    jobs = LocalJobs(search_cache=SearchCache(cache_path, 1_000_000, 3600))
+    service = FramesService(Archive([exposure("one"), exposure("two", 60001)]),
+                            Cutouts(), FitsRenderer(), jobs, batch_size=1)
+    try:
+        sequence_id = service.start(region)["sequenceId"]
+    finally:
+        jobs.close()
+    original = service.poll(sequence_id, 0)
+    assert original["status"] == "awaiting_more"
+
+    restored_jobs = LocalJobs(search_cache=SearchCache(cache_path, 1_000_000, 3600))
+    service = FramesService(Archive([]), Cutouts(), FitsRenderer(), restored_jobs, batch_size=1)
+    try:
+        assert service.poll(sequence_id, 0) == original
+        service.next_batch(sequence_id, 1)
+        assert completed(service, sequence_id)["status"] == "completed"
+        assert [frame["id"] for frame in service.poll(sequence_id, 0)["frames"]] == ["one", "two"]
+    finally:
+        restored_jobs.close()

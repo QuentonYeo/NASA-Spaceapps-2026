@@ -9,7 +9,7 @@ uv run uvicorn app.main:app --reload
 
 Open http://localhost:8000/docs to submit and inspect requests.
 Use one Uvicorn worker: jobs and previews are process-local and are lost on restart.
-Reloading source also restarts the process. Completed jobs expire after 30 minutes.
+Reloading source also restarts the process. In-memory jobs expire after 30 minutes. Completed batches can be replayed from disk.
 
 ## Frames workflow
 
@@ -70,6 +70,9 @@ Environment variables read at app startup:
 | --- | --- | --- |
 | `IRSA_COLLECTIONS` | `spherex_dr1` | Comma-separated archive collections |
 | `FRAME_BATCH_SIZE` | `12` | Exposures retrieved per explicit batch |
+| `SEARCH_CACHE_BYTES` | `268435456` | Compressed preview checkpoint budget (0 disables it) |
+| `SEARCH_CACHE_TTL_SECONDS` | `604800` | Disk checkpoint retention |
+| `SEARCH_CACHE_PATH` | `~/.cache/spherex-sky-blink/searches-v1.sqlite3` | Local checkpoint database |
 | `CUTOUT_CACHE_BYTES` | `134217728` | In-memory FITS cache budget in bytes (0 disables it) |
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
 | `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new visit |
@@ -88,7 +91,11 @@ stop other frames. Retry logic is in IRSA adapters, not routers.
 This executor/store is for local development. Before multi-worker deployment,
 replace it with shared persistent job storage and a worker queue. Cutouts are cached by release and exposure ID. A covered nearby request can reuse
 FITS pixels. Discovery still runs for each search, and the cache clears on restart.
-There is no cancellation endpoint or durable job recovery yet.
+Finished batches are checkpointed to local SQLite for up to seven days by default.
+The same sequence ID can replay completed previews after a restart, and an
+unfinished sequence can continue from its last completed batch. A batch interrupted
+by a restart may need to run again. This is local storage for one backend instance.
+There is no cancellation endpoint.
 
 ## Tests
 

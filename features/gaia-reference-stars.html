@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia reference stars | SPHEREx Sky Blink</title>
+<style>
+body{max-width:760px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f3f7fa;font:1rem/1.65 system-ui,sans-serif}h1,h2{line-height:1.2}a{color:#11635b}
+</style>
+</head>
+<body>
+<main>
+<h1>Gaia reference stars</h1>
+<p>In Aligned Blink, enable <strong>Gaia reference stars</strong> to overlay expected Gaia DR3 source positions. A group of visible sources shifting together can indicate a residual alignment error.</p>
+<h2>Catalogue and projection</h2>
+<p>The backend queries the Gaia ESA Archive through TAP on demand using the active search center and a cone radius of field of view divided by √2 plus 0.03°. It keeps up to 150 optically brightest catalogue entries in the retained backend job. The same catalogue serves all frames in the sequence, independently of SPHEREx archive requests.</p>
+<p>The viewer uses Gaia’s reference epoch and available proper-motion components to estimate each source position at the SPHEREx observation time. It projects each position onto the north-up 6.15 arcsec/pixel aligned grid and filters markers outside the image or on transparent pixels. Marker positions follow the preview at each display size.</p>
+<h2>Interpretation</h2>
+<p>Markers are catalogue predictions. Gaia observes optical light, so marked sources may be faint or invisible in SPHEREx infrared frames, and infrared sources can lack Gaia counterparts. The overlay uses linear proper motion and omits parallax and perspective acceleration. Use isolated stars visible across the selected frames to assess alignment.</p>
+<p><a href="aligned-blink.html">Aligned Blink</a> · <a href="https://gea.esac.esa.int/archive/documentation/GDR3/Gaia_archive/chap_datamodel/sec_dm_main_source_catalogue/ssec_dm_gaia_source.html">Gaia DR3 source catalogue</a></p>
+</main>
+</body>
+</html>

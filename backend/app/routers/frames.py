@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response
 from app.domain.models import Region
-from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, SequencePage
+from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, SequencePage
 from app.services.interfaces import Frames
 
 router = APIRouter(prefix="/frames", tags=["frames"])
@@ -37,6 +37,15 @@ def poll_frames(sequence_id: str, response: Response,
     """
     response.headers["Cache-Control"] = "no-store"
     return service.poll(sequence_id, after)
+
+
+
+@router.get("/{sequence_id}/gaia", response_model=GaiaCatalogue)
+def gaia_sources(sequence_id: str, response: Response,
+                 service: Annotated[Frames, Depends(get_frames_service)]):
+    """Return Gaia DR3 reference sources for the requested sky field."""
+    response.headers["Cache-Control"] = "no-store"
+    return service.gaia_sources(sequence_id)
 
 
 @router.post("/{sequence_id}/batches", response_model=AcceptedSequence, status_code=202,

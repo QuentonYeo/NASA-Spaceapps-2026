@@ -5,6 +5,7 @@ from uuid import uuid4
 from app.domain.errors import AppError
 from app.domain.models import Region
 from app.services.cutout_cache import CutoutCache
+from app.services.gaia import query_gaia
 from app.services.interfaces import Archive, Cutouts, Renderer
 from app.services.jobs import Job, LocalJobs
 
@@ -51,15 +52,13 @@ class FramesService:
         except AppError as exc:
             with job.lock:
                 job.status, job.error = "failed", exc.payload()
+                job.finished = time.monotonic()
         except Exception:
             logger.exception("Sequence %s failed", job.id)
             with job.lock:
                 job.status = "failed"
                 job.error = AppError("INTERNAL_ERROR", "The sequence could not be completed.", 500).payload()
-        finally:
-            with job.lock:
-                if job.status not in {"queued", "running", "discovering"}:
-                    job.finished = time.monotonic()
+                job.finished = time.monotonic()
 
     def next_batch(self, sequence_id: str, after: int) -> dict:
         job = self.jobs.get(sequence_id)
@@ -97,13 +96,13 @@ class FramesService:
                 job.status = ("awaiting_more" if job.scheduled < job.total else
                               "completed" if not failed else
                               "failed" if failed == job.total else "partial")
+                self.jobs.checkpoint(job)
+                job.finished = time.monotonic()
         except Exception:
             logger.exception("Sequence batch %s failed", job.id)
             with job.lock:
                 job.status = "failed"
                 job.error = AppError("INTERNAL_ERROR", "The image batch could not be completed.", 500).payload()
-        finally:
-            with job.lock:
                 job.finished = time.monotonic()
 
     def _frame(self, job, exposure, visit):
@@ -128,6 +127,13 @@ class FramesService:
             logger.exception("Frame %s failed", exposure.id)
             result.update(status="failed", error=AppError("FRAME_ERROR", "The frame could not be prepared.", 500).payload())
         return result
+
+    def gaia_sources(self, sequence_id: str) -> dict:
+        job = self.jobs.get(sequence_id)
+        with job.gaia_lock:
+            if job.gaia_catalogue is None:
+                job.gaia_catalogue = query_gaia(job.region)
+            return job.gaia_catalogue
 
     def poll(self, sequence_id: str, after: int) -> dict:
         job = self.jobs.get(sequence_id)

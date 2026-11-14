@@ -105,3 +105,18 @@ class SequencePage(BaseModel):
     progress: Progress
     frames: list[Frame]
     error: ErrorInfo | None
+
+
+class GaiaSource(BaseModel):
+    sourceId: str
+    ra: float
+    dec: float
+    refEpoch: float
+    pmRa: float | None
+    pmDec: float | None
+    gMagnitude: float
+
+
+class GaiaCatalogue(BaseModel):
+    sources: list[GaiaSource]
+    limited: bool
