@@ -59,8 +59,8 @@ The first usable frame with a nonzero display range sets the fixed limits for it
 detector, release and brightness unit for the rest of the sequence. Known
 instrument artifacts and invalid variance are masked when the cutout supplies
 quality arrays. Local wavelength is reported when the spectral WCS is usable.
-Previews do not apply background subtraction or alignment. FITS data is discarded
-after rendering; encoded PNGs are retained until job expiry.
+Previews do not apply background subtraction or alignment. FITS cutouts can be reused across jobs through the bounded in-memory cache.
+Encoded PNGs are retained until job expiry.
 
 ## Configuration
 
@@ -70,6 +70,7 @@ Environment variables read at app startup:
 | --- | --- | --- |
 | `IRSA_COLLECTIONS` | `spherex_dr1` | Comma-separated archive collections |
 | `FRAME_BATCH_SIZE` | `12` | Exposures retrieved per explicit batch |
+| `CUTOUT_CACHE_BYTES` | `134217728` | In-memory FITS cache budget in bytes (0 disables it) |
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
 | `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new visit |
 | `CUTOUT_WORKERS` | `4` | Concurrent cutouts per running job |
@@ -85,8 +86,9 @@ blocking read can run until its network timeout. Exhausted frame failures do not
 stop other frames. Retry logic is in IRSA adapters, not routers.
 
 This executor/store is for local development. Before multi-worker deployment,
-replace it with shared persistent job storage and a worker queue. There is no
-cross-job request cache, cancellation endpoint, or durable recovery yet.
+replace it with shared persistent job storage and a worker queue. Cutouts are cached by release and exposure ID. A covered nearby request can reuse
+FITS pixels. Discovery still runs for each search, and the cache clears on restart.
+There is no cancellation endpoint or durable job recovery yet.
 
 ## Tests
 

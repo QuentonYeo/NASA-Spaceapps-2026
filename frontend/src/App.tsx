@@ -6,7 +6,9 @@ import './App.css';
 
 function App() {
   const sequence = useFrames();
-  const [inputs, setInputs] = useState({ ra: '133.79513', dec: '-7.24515', fov: '0.05' });
+  const [inputs, setInputs] = useState(() => sequence.query
+    ? { ra: String(sequence.query.ra), dec: String(sequence.query.dec), fov: String(sequence.query.fov) }
+    : { ra: '133.79513', dec: '-7.24515', fov: '0.05' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState('4');
@@ -133,7 +135,7 @@ function App() {
           <progress aria-label="Frames processed" max={progress?.total || 1} value={finished} />
           <div className="stats"><span><b>{progress?.ready ?? 0}</b> ready</span><span><b>{progress?.failed ?? 0}</b> failed</span><span><b>{progress?.total ?? 0}</b> total</span></div>
           {sequence.notice && <p className="hint">{sequence.notice}</p>}
-          {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not downloaded yet.</p>}
+          {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
           {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
           {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>Resume loading</button>}
           {sequence.error && <p className="error" role="alert">{sequence.error}</p>}

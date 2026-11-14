@@ -35,12 +35,14 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <li>Choose a <strong>Frame to add</strong> and click <strong>Add frame</strong>. Repeat to build a longer sequence. Frames are appended in the order chosen. Select a frame number in the comparison table to show it, or remove any appended frame. Changing the reference rebuilds the selection around that reference.</li>
 <li>Choose <strong>Play blink</strong> to loop through the sequence at 650 ms per frame. Use Previous, Next, or the arrow keys with the image focused to step manually. The display size stays fixed while switching frames.</li>
 </ol>
-<p>The selected-frame comparison table keeps each frame in playback order and highlights the one on screen. It shows UTC observation time, visit, detector, release, and wavelength at the target. Missing wavelength values are labeled unavailable. The table lets you compare timestamps and wavelengths during playback.</p>
+<p>The selected-frame comparison table keeps each frame in playback order and highlights the one on screen. It shows UTC observation time, visit, detector, release, and wavelength at the target. Missing wavelength values are labeled unavailable. The table lets you compare timestamps and wavelengths during playback. Refresh restores the previous search and available previews when its job is still retained. The blink selection can be built again from those previews.</p>
 </section>
 <section id="processing">
 <h2>What changes between the archive and the screen</h2>
 <h3>Field of view and pixel scale</h3>
 <p>RA and Dec set the cutout center. Field of view sets how much sky the cutout covers. The archive crops native pixels at about 6.15 arcseconds per pixel. A fully covered 0.05° cutout is roughly 29 pixels across and a 0.10° cutout is roughly 59. Wider fields contain more sky pixels. Fit-to-viewer can make a source appear smaller on screen because more pixels fit into the same area. Edge coverage and rounding can affect the dimensions of native cutouts. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/#cutouts-of-spectral-image-mefs">IRSA cutout documentation</a></p>
+<h3>Cutout reuse</h3>
+<p>The backend can rebuild aligned previews from cached FITS pixels when a new search is covered by a cutout from the same exposure. <a href="fits-cutout-cache.html">FITS cutout cache</a></p>
 <h3>Sky alignment</h3>
 <p>Native previews preserve the input FITS dimensions. Two native exposures can have the same nominal pixel scale while pointing or rotating differently, so a stationary source can shift in the viewer. Aligned Blink uses each cutout’s celestial WCS to reproject calibrated brightness values with bilinear interpolation onto a common north-up grid centered on the query at 6.15 arcseconds per pixel. Masked or uncovered pixels are transparent where interpolation has no valid result. <a href="../backend/app/services/rendering.py">Renderer</a></p>
 <h3>Brightness and quality</h3>

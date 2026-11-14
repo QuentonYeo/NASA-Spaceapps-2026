@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.exception_handlers import register_exception_handlers
 from app.routers.frames import router
+from app.services.cutout_cache import CutoutCache
 from app.services.frames import FramesService
 from app.services.irsa.discovery import IrsaArchive
 from app.services.irsa.cutouts import IrsaCutouts
@@ -24,6 +25,7 @@ def create_app(service=None) -> FastAPI:
             workers = int(os.getenv("CUTOUT_WORKERS", "4"))
             cutouts = (S3Cutouts(connections=2 * workers) if provider == "s3"
                        else IrsaCutouts(connections=2 * workers))
+            cache = CutoutCache(int(os.getenv("CUTOUT_CACHE_BYTES", str(128 * 1024 * 1024))))
             jobs = LocalJobs(max_jobs=int(os.getenv("MAX_JOBS", "8")),
                              ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")))
             app.state.frames = FramesService(
@@ -32,7 +34,8 @@ def create_app(service=None) -> FastAPI:
                 max_frames=int(os.getenv("MAX_FRAMES", "300")),
                 visit_gap_days=float(os.getenv("VISIT_GAP_DAYS", "10")),
                 cutout_workers=int(os.getenv("CUTOUT_WORKERS", "4")),
-                batch_size=int(os.getenv("FRAME_BATCH_SIZE", "12")))
+                batch_size=int(os.getenv("FRAME_BATCH_SIZE", "12")),
+                cutout_cache=cache)
         else:
             app.state.frames = service
         try:

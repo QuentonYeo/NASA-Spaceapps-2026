@@ -1,10 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
-import { pollSequence, requestBatch, startSequence } from '../api/frames';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RequestError, pollSequence, requestBatch, startSequence } from '../api/frames';
 import type { Frame, SequencePage, SkyQuery } from '../api/frames';
+
+const storageKey = 'spherex-active-search';
+type SavedSearch = { sequenceId: string; pollUrl: string; query: SkyQuery; paused: boolean };
+
+function readSearch(): SavedSearch | null {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null') as SavedSearch | null;
+    if (!saved || typeof saved.sequenceId !== 'string' ||
+        !/^[-\w]+$/.test(saved.sequenceId) || saved.pollUrl !== `/api/frames/${saved.sequenceId}` ||
+        ![saved.query.ra, saved.query.dec, saved.query.fov].every(Number.isFinite)) return null;
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveSearch(search: SavedSearch | null) {
+  try {
+    if (search) sessionStorage.setItem(storageKey, JSON.stringify(search));
+    else sessionStorage.removeItem(storageKey);
+  } catch {
+    // Searching remains available when browser storage is unavailable.
+  }
+}
 
 export function useFrames() {
   const cursor = useRef(0);
-  const session = useRef<{ sequenceId: string; pollUrl: string } | null>(null);
+  const [saved] = useState(readSearch);
+  const session = useRef(saved);
   const [resumable, setResumable] = useState(false);
   const [paused, setPaused] = useState(false);
   const controller = useRef<AbortController | null>(null);
@@ -13,10 +38,8 @@ export function useFrames() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [query, setQuery] = useState<SkyQuery | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-
-  function receive(next: SequencePage) {
+  const [query, setQuery] = useState<SkyQuery | null>(saved?.query ?? null);
+  const receive = useCallback((next: SequencePage) => {
     cursor.current = next.nextCursor;
     setPage(next); setNotice('');
     setFrames((existing) => {
@@ -25,27 +48,36 @@ export function useFrames() {
       return [...merged.values()].sort((a, b) => a.observedAtUtc.localeCompare(b.observedAtUtc) || a.id.localeCompare(b.id));
     });
     if (next.error) setError(next.error.message);
-  }
+  }, []);
 
-  async function run(input?: SkyQuery) {
+  const run = useCallback(async (input?: SkyQuery, restoring = false) => {
     if (!input && !session.current) return;
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
-    setError(''); setBusy(true); setPaused(false);
-    if (input) {
+    const existing = session.current;
+    const sameQuery = !!(input && existing && input.ra === existing.query.ra &&
+      input.dec === existing.query.dec && input.fov === existing.query.fov);
+    const newSearch = sameQuery ? undefined : input;
+    const restorePaused = restoring && !!existing?.paused;
+    setError(''); setBusy(true); setPaused(restorePaused);
+    if (newSearch) {
+      saveSearch(null);
       cursor.current = 0; session.current = null; setResumable(false);
-      setFrames([]); setPage(null); setQuery(input);
+      setFrames([]); setPage(null); setQuery(newSearch);
     }
-    setNotice(input ? 'Discovering exposures...' : 'Resuming image loading...');
+    setNotice(newSearch ? 'Discovering exposures...' : 'Reconnecting to the existing search...');
     try {
-      if (input) {
-        const accepted = await startSequence(input, current.signal);
+      if (newSearch) {
+        const accepted = await startSequence(newSearch, current.signal);
         if (current.signal.aborted) return;
-        session.current = accepted;
+        session.current = { ...accepted, query: newSearch, paused: false };
         setResumable(true);
       }
-      const active = session.current!;
+      const active = { ...session.current!, paused: restorePaused };
+      session.current = active;
+      setResumable(true);
+      saveSearch(active);
       while (!current.signal.aborted) {
         const latest = await pollSequence(active.pollUrl, current.signal, receive, setNotice, cursor.current);
         if (current.signal.aborted || !latest) return;
@@ -53,24 +85,43 @@ export function useFrames() {
           setResumable(false);
           return;
         }
+        if (restorePaused) return;
         setNotice('Requesting the next image batch...');
         await requestBatch(active.sequenceId, latest.scheduledCount, current.signal);
       }
     } catch (caught) {
       if (!current.signal.aborted) {
+        if (caught instanceof RequestError && (caught.status === 404 || caught.status === 410)) {
+          session.current = null;
+          saveSearch(null);
+          setResumable(false);
+          setPaused(false);
+          setNotice('');
+          setError('The previous search expired. Select Find observations to reload this view.');
+          return;
+        }
         setError(caught instanceof Error ? caught.message : 'The request failed. Please try again.');
         setNotice('');
       }
     } finally {
       if (!current.signal.aborted) setBusy(false);
     }
-  }
+  }, [receive]);
+
+  useEffect(() => {
+    if (saved) void run(undefined, true);
+    return () => controller.current?.abort();
+  }, [run, saved]);
 
   const start = (input: SkyQuery) => run(input);
   const resume = () => run();
 
   function stop() {
     controller.current?.abort(); setBusy(false); setPaused(true);
+    if (session.current) {
+      session.current = { ...session.current, paused: true };
+      saveSearch(session.current);
+    }
     setNotice('Stopped. Images are kept; the current backend batch may finish. Resume to continue.');
   }
   return { frames, page, busy, error, notice, query, start, stop, resume, resumable, paused };

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FITS cutout cache | SPHEREx Sky Blink</title>
+<style>
+body{max-width:760px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f3f7fa;font:1rem/1.65 system-ui,sans-serif}h1,h2{line-height:1.2}a{color:#11635b}
+</style>
+</head>
+<body>
+<main>
+<h1>FITS cutout cache</h1>
+<p>Reuse downloaded SPHEREx pixels across searches in the same backend process. The archive release and its exposure ID identify the source. Each cached cutout has its own requested region and keeps the original FITS sky-coordinate metadata.</p>
+<h2>How a search uses the cache</h2>
+<ul>
+<li>An identical region reuses its downloaded cutout.</li>
+<li>For a smaller or nearby view, the backend projects the requested sky grid into the cached FITS coordinates. If that grid fits, it crops the native image and quality mask, keeps surrounding pixels for interpolation, and builds previews for the new view.</li>
+<li>If no cached cutout covers the view, the backend requests the cutout from the archive. Wavelength at the new target is evaluated using the original FITS metadata when available.</li>
+</ul>
+<h2>Limits</h2>
+<p>The cache defaults to 128 MiB of FITS data and evicts the least recently used cutout first. Set <code>CUTOUT_CACHE_BYTES=0</code> to disable it. The cache lives in memory and clears when the backend restarts. Observation discovery still runs on each new search. The browser remembers the last accepted search in the same tab. Refresh reconnects to the existing backend job and reloads its previews. Submitting identical coordinates and field of view in that tab also reuses the job. If it has expired or the backend restarted, the viewer keeps the inputs and prompts you to search again. Blink selections still reset on refresh.</p>
+<p><a href="aligned-blink.html">Aligned Blink</a> · <a href="../backend/app/services/cutout_cache.py">Backend cache implementation</a></p>
+</main>
+</body>
+</html>

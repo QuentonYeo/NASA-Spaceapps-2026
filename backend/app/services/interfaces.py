@@ -12,7 +12,8 @@ class Cutouts(Protocol):
 
 
 class Renderer(Protocol):
-    def prepare(self, cutout: bytes, region: Region | None = None) -> PreviewPixels: ...
+    def prepare(self, cutout: bytes, region: Region | None = None, *,
+                crop_cached: bool = False) -> PreviewPixels: ...
     def preview(self, pixels: PreviewPixels, shared: tuple[float, float] | None = None) -> dict: ...
 
 

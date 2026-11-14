@@ -37,10 +37,11 @@ class PreviewPixels:
     region: Region | None
 
 
-def align_to_query(pixels: PreviewPixels) -> PreviewPixels | None:
-    if pixels.wcs is None or pixels.region is None:
-        return None
-    region = pixels.region
+class CutoutCoverageMiss(Exception):
+    """The cached cutout cannot supply the requested view."""
+
+
+def query_grid(region: Region) -> tuple[WCS, int]:
     side = max(1, round(region.fov / PIXEL_SCALE_DEG))
     grid = WCS(naxis=2)
     grid.wcs.ctype = ["RA---TAN", "DEC--TAN"]
@@ -48,6 +49,34 @@ def align_to_query(pixels: PreviewPixels) -> PreviewPixels | None:
     grid.wcs.crval = [region.ra, region.dec]
     grid.wcs.crpix = [(side + 1) / 2] * 2
     grid.wcs.cdelt = [-PIXEL_SCALE_DEG, PIXEL_SCALE_DEG]
+    return grid, side
+
+
+def covered_slice(wcs: WCS | None, shape: tuple[int, int], region: Region) -> tuple[slice, slice]:
+    if wcs is None:
+        raise CutoutCoverageMiss
+    grid, side = query_grid(region)
+    # Sample the output grid with its outer pixel edges, so projection
+    # distortion and partial coverage are checked in the actual FITS WCS.
+    axis = np.r_[-0.5, np.arange(side), side - 0.5]
+    try:
+        x, y = wcs.world_to_pixel(grid.pixel_to_world(*np.meshgrid(axis, axis)))
+    except (WcsError, ValueError, TypeError) as exc:
+        raise CutoutCoverageMiss from exc
+    height, width = shape
+    if not (np.isfinite(x).all() and np.isfinite(y).all()
+            and x.min() >= -0.5 and x.max() <= width - 0.5
+            and y.min() >= -0.5 and y.max() <= height - 0.5):
+        raise CutoutCoverageMiss
+    # Keep the surrounding pixels needed for bilinear interpolation.
+    return (slice(max(0, int(np.floor(y.min()))), min(height, int(np.ceil(y.max())) + 1)),
+            slice(max(0, int(np.floor(x.min()))), min(width, int(np.ceil(x.max())) + 1)))
+
+
+def align_to_query(pixels: PreviewPixels) -> PreviewPixels | None:
+    if pixels.wcs is None or pixels.region is None:
+        return None
+    grid, side = query_grid(pixels.region)
 
     # Interpolate calibrated values and leave gaps wherever the interpolation
     # needs a masked or uncovered input pixel.
@@ -83,7 +112,8 @@ def local_wavelength(hdus: fits.HDUList, region: Region) -> float | None:
 
 
 class FitsRenderer:
-    def prepare(self, cutout: bytes, region: Region | None = None) -> PreviewPixels:
+    def prepare(self, cutout: bytes, region: Region | None = None, *,
+                crop_cached: bool = False) -> PreviewPixels:
         try:
             with fits.open(io.BytesIO(cutout), memmap=False) as hdus:
                 image = hdus["IMAGE"]
@@ -114,6 +144,12 @@ class FitsRenderer:
                             wcs = candidate
                     except (WcsError, ValueError):
                         logger.debug("No usable celestial WCS for aligned preview", exc_info=True)
+            if crop_cached and region is not None:
+                crop = covered_slice(wcs, data.shape, region)
+                data, valid = data[crop], valid[crop]
+                wcs = wcs.slice(crop)
+                if not valid.any():
+                    raise CutoutCoverageMiss
             if not valid.any():
                 raise ValueError("No valid pixels")
             low, high = np.percentile(data[valid], [0.5, 99.5])

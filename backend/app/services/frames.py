@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import uuid4
 from app.domain.errors import AppError
 from app.domain.models import Region
+from app.services.cutout_cache import CutoutCache
 from app.services.interfaces import Archive, Cutouts, Renderer
 from app.services.jobs import Job, LocalJobs
 
@@ -12,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 class FramesService:
     def __init__(self, archive: Archive, cutouts: Cutouts, renderer: Renderer,
-                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12):
+                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12, cutout_cache: CutoutCache | None = None):
         self.archive, self.cutouts, self.renderer, self.jobs = archive, cutouts, renderer, jobs
         self.max_frames, self.visit_gap_days = max_frames, visit_gap_days
         self.cutout_workers = cutout_workers
         self.batch_size = batch_size
+        self.cutout_cache = cutout_cache
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
@@ -110,7 +112,10 @@ class FramesService:
                   "sourceFitsUrl": exposure.url, "previewUrl": None, "coverage": None,
                   "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
         try:
-            pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
+            if self.cutout_cache is None:
+                pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
+            else:
+                pixels = self.cutout_cache.prepare(exposure, job.region, self.cutouts, self.renderer)
             group = (exposure.release, exposure.detector, pixels.unit)
             with job.lock:
                 if pixels.limits[1] > pixels.limits[0]:

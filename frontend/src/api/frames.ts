@@ -23,8 +23,9 @@ interface Accepted { sequenceId: string; pollUrl: string; pollAfterSeconds: numb
 export class RequestError extends Error {
   readonly retryable: boolean;
   readonly retryAfter: number;
-  constructor(message: string, retryable = false, retryAfter = 1) {
-    super(message); this.retryable = retryable; this.retryAfter = retryAfter;
+  readonly status?: number;
+  constructor(message: string, retryable = false, retryAfter = 1, status?: number) {
+    super(message); this.retryable = retryable; this.retryAfter = retryAfter; this.status = status;
   }
 }
 
@@ -45,7 +46,7 @@ async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { 
   if (!response.ok) {
     throw new RequestError(data?.error?.message ?? `Backend request failed (${response.status}).`,
       data?.error?.retryable ?? response.status >= 500,
-      data?.error?.retryAfterSeconds ?? 1);
+      data?.error?.retryAfterSeconds ?? 1, response.status);
   }
   if (!data) throw new RequestError('The backend returned an invalid response.');
   return data as T;
