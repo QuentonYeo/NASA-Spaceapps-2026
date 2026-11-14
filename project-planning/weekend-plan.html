@@ -10,6 +10,7 @@
 
 :root{color-scheme:light;--bg:#f4f6fb;--panel:#fff;--ink:#182341;--muted:#52617a;--accent:#3051a5;--border:#d6deed}
 header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius:22px;border:0}header .lead{color:#d4dff6}header a,header .date{color:#bcd1ff}header nav{margin-bottom:0}main{max-width:1200px}pre{background:#eef2fa}button,select,input[type=text],textarea{font:inherit;color:inherit;border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:.42em .65em}button{cursor:pointer;font-weight:650}button:hover{background:#edf3ff}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #526dd7;outline-offset:2px}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0}.metric{padding:12px 15px;border-radius:12px;background:#eef2fb}.metric b{display:block;font-size:1.65rem;line-height:1.2}.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:16px 0}.toolbar label{display:grid;gap:4px}.toolbar .transfer{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}.progress-row{display:grid;grid-template-columns:minmax(140px,1fr) minmax(60px,2fr) auto;gap:10px;align-items:center;margin:.55em 0}progress{width:100%;height:12px;accent-color:#526dd7}.lane{margin:18px 0}.task{display:grid;grid-template-columns:minmax(0,2fr) minmax(124px,1fr) minmax(124px,1fr);gap:10px;padding:13px 0;border-top:1px solid var(--border);align-items:start}.task label{display:grid;gap:3px;font-size:.86rem}.task input,.task select,.task textarea{width:100%;min-width:0}.task details{grid-column:1/-1}.task summary{cursor:pointer;color:var(--accent);font-size:.9rem}.task details p{margin:.5em 0}.task .note{max-width:620px}.task[data-status="Blocked"]{border-left:4px solid #c95645;padding-left:9px}.task[data-status="Done"] .task-title{color:#196449}.task-title{font-weight:750}.task-meta{display:block}.checkpoint-count{font-weight:700;color:var(--accent)}#tracker-message{min-height:1.6em;margin:0}#ready li{list-style:none}#ready ul{padding-left:0}@media(max-width:570px){.task{grid-template-columns:1fr 1fr}.task-head{grid-column:1/-1}.toolbar .transfer{margin-left:0}}@media print{header{background:white;color:#182341}header .lead,header .date{color:#182341}.toolbar{display:none}.lane{break-inside:auto}.task{break-inside:avoid}}
+#image-processing figure{margin:1em 0}#image-processing figure img{display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:6px}#image-processing figcaption{font-size:.86rem;color:var(--muted);margin-top:.4em}.m101-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.m101-previews img{image-rendering:pixelated;background:#17264a}.m101-overlay{position:relative}.m101-overlay img+img{position:absolute;inset:0;background:transparent}.task{grid-template-columns:minmax(0,2fr) minmax(124px,1fr)}
 </style>
 </head>
 <body><main>
@@ -51,9 +52,38 @@ header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius
 <article><h3>1. Archive and fixtures</h3>
 <ol><li>In <code>backend/notebooks/</code>, query IRSA SIA2 for single exposures from <code>spherex_dr1</code>. Use <code>spherex_qr3</code> when looking for newer observations. Save example metadata and record which fields carry IDs, dates and download URLs.</li><li>Use IRSA MOST to locate exposures covering a known asteroid’s predicted positions. Download FITS cutouts centered on a common sky patch. Verify actual shared coverage, target visibility, comparable local wavelengths and distinct times.</li><li>Write a small SPHEREx adapter in <code>backend/app/services/</code> with search and cutout steps. Validate RA, Dec and FOV, enforce server-side limits on FOV and frame count, and cache by sky region, release and selection parameters. Make errors and partial coverage visible.</li></ol>
 <p><strong>Handoff:</strong> reproducible fixture with source links and a cached demo selection. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/">IRSA archive access</a> · <a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">MOST</a></p></article>
-<article><h3>2. Image processing</h3>
-<ol><li>Read <code>IMAGE</code>, <code>FLAGS</code>, <code>VARIANCE</code> and coordinate metadata. Select documented flag bits to mask. Estimate a local background and record the method. Keep invalid and uncovered pixels masked through alignment.</li><li>Align frames to one sky grid using the image coordinates. Compare clean reference stars to check alignment. Compute pairwise signed difference images only over common valid coverage at comparable wavelengths. Inspect residuals around bright stars before using them as detection evidence.</li><li>Export a common-scale preview and difference overlay for the UI. Keep calibrated arrays and masks for detection. Retain FITS provenance so an exported image can be traced to the archive.</li></ol>
-<p><strong>Handoff:</strong> arrays, display frames, and a shared grid with documented dimensions and orientation. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/">SPHEREx data products</a></p></article>
+<article id="image-processing"><h3>2. Image processing</h3>
+<p><strong>All three tasks completed on the M101 sample.</strong></p>
+<ol>
+<li>
+<h4>Mask pixels and estimate the local background</h4>
+<p>Read brightness, quality flags, variance, and sky and wavelength coordinates from the FITS files. Masked documented bad-pixel flags, including <code>OUTLIER</code>, and rejected nonfinite brightness or invalid variance. The <code>SOURCE</code> flag covered over 99% of the small cutouts, so the background came from wider cutouts of the same exposures. For each, we took the 3-sigma-clipped median of usable, source-free pixels 6–8 arcminutes from M101.</p>
+<p>The first three exposures gave backgrounds of 0.196, 0.333, and 0.184 MJy/sr. Invalid and uncovered pixels kept separate mask codes. The May 14 frame left 1,548 pixels uncovered on the 59 × 59 grid. <a href="image-processing/m101-report.json">Background and mask report</a> · <a href="image-processing/m101-alignment.png">Aligned frames</a></p>
+<figure><a href="image-processing/m101-alignment.png"><img src="image-processing/m101-alignment.png" alt="Three aligned M101 exposures. The middle image has a large grey uncovered region." loading="lazy"></a>
+<figcaption>Grey marks invalid or uncovered pixels. Each panel has its own brightness scale.</figcaption></figure>
+</li>
+<li>
+<h4>Align frames and inspect signed differences</h4>
+<p>Aligned four exposures to the May 10 celestial WCS with nearest-neighbor sampling. Compared all six pairs and required pixels to be valid in both exposures, with at least 80% overlap of the wider nominal wavelength band at that pixel.</p>
+<p>One pair qualified. May 16 (1.503 µm at M101) minus May 10 (1.506 µm) yielded 3,268 comparable pixels. Four reference-star candidates selected from the images showed centroid shifts of 0.12–0.39 pixels. The brightest left adjacent positive and negative residuals. Use this difference as a diagnostic. Refine the subpixel alignment and match stellar profiles before using residuals as detection evidence. <a href="image-processing/m101-difference-report.json">Pair and star measurements</a> · <a href="image-processing/m101-repeat-may16-minus-m101-1.png">Residual inspection</a></p>
+<figure><a href="image-processing/m101-repeat-may16-minus-m101-1.png"><img src="image-processing/m101-repeat-may16-minus-m101-1.png" alt="Signed M101 difference with four enlarged star residuals showing adjacent red and blue patches." loading="lazy"></a>
+<figcaption>May 16 minus May 10. Open the full-size plot to inspect the four reference-star residuals.</figcaption></figure>
+</li>
+<li>
+<h4>Export UI assets and preserve FITS provenance</h4>
+<p>Exported both frames as 59 × 59 PNGs with a shared linear stretch of 0.205–2.571 MJy/sr. The signed overlay uses red for positive differences and blue for negative differences, with opacity based on magnitude and full transparency over masked pixels. All PNGs use the same top-left origin.</p>
+<p>The FITS products preserve calibrated pixel arrays, variance, and masks for analysis. The manifest and embedded provenance record the IRSA source URLs, FITS checksums, and coordinate mapping. <a href="image-processing/m101-ui/earlier.png">May 10 preview</a> · <a href="image-processing/m101-ui/later.png">May 16 preview</a> · <a href="image-processing/m101-ui/difference-overlay.png">Overlay</a> · <a href="image-processing/m101-ui/difference.fits">Difference FITS</a> · <a href="image-processing/m101-ui/manifest.json">UI manifest</a></p>
+<figure>
+<div class="m101-previews">
+<div><img src="image-processing/m101-ui/earlier.png" alt="M101 on May 10 at the shared brightness scale" loading="lazy"><small>May 10</small></div>
+<div><img src="image-processing/m101-ui/later.png" alt="M101 on May 16 at the shared brightness scale" loading="lazy"><small>May 16</small></div>
+<div><div class="m101-overlay"><img src="image-processing/m101-ui/later.png" alt="" loading="lazy"><img src="image-processing/m101-ui/difference-overlay.png" alt="Red and blue differences overlaid on the May 16 frame" loading="lazy"></div><small>Difference overlay</small></div>
+</div>
+<figcaption>The two previews share the same brightness scale. The third panel places the signed overlay on the May 16 preview.</figcaption>
+</figure>
+</li>
+</ol>
+<p><a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/">SPHEREx data products</a></p></article>
 <article><h3>3. Viewer and integration</h3>
 <ol><li>In <code>frontend/</code>, load the fixture on startup. Build RA, Dec and FOV inputs, play/pause, frame selection, zoom and contrast. Contrast applies across the sequence and zoom preserves the view when changing frames.</li><li>Show time, local wavelength, release, loading and missing or partial coverage. Add frame selection for detection and toggleable difference, candidate and known-object overlays. Draw markers in processed frame coordinates and apply the same zoom transform as the image.</li><li>Connect FastAPI live search with a visible path back to the demo. For known stars, use Gaia DR3 positions propagated to the frame epoch where proper motion is available. For the verified asteroid, use MOST predictions at each exposure time.</li></ol>
 <p><strong>Handoff:</strong> a complete browser workflow exercised against the same manifest in cached and live modes. <a href="https://archive.stsci.edu/missions-and-data/gaia">Gaia DR3</a></p></article>
@@ -152,23 +182,28 @@ checks.forEach((input, index) => {
   tasks.push({id: 'stretch-' + index, title, detail, lane: 5, milestone: 4, stretch: true});
 });
 const storageKey = 'spherex-sky-blink-tracker-v1';
-const empty = {status: 'To do', owner: '', note: ''};
+const empty = {status: 'To do', note: ''};
+const completedImageTasks = tasks.filter(task => task.lane === 1).map(task => task.id);
+const initialProgress = Object.fromEntries(completedImageTasks.map(id => [
+  id, {status: 'Done', note: ''}
+]));
 const find = id => document.getElementById(id);
-let state = {};
+let state = {...initialProgress};
 let storageAvailable = true;
 function normalize(snapshot) {
-  if (!snapshot || snapshot.version !== 1 || !snapshot.tasks ||
+  if (!snapshot || ![1, 2].includes(snapshot.version) || !snapshot.tasks ||
       typeof snapshot.tasks !== 'object' || Array.isArray(snapshot.tasks)) {
     throw new Error('Choose a snapshot exported from this tracker.');
   }
-  const result = {};
+  const result = {...initialProgress};
   for (const {id} of tasks) {
     if (!Object.hasOwn(snapshot.tasks, id)) continue;
     const entry = snapshot.tasks[id];
-    if (!entry || !statuses.includes(entry.status) || typeof entry.owner !== 'string' || typeof entry.note !== 'string') {
+    if (!entry || !statuses.includes(entry.status) || typeof entry.note !== 'string') {
       throw new Error('The snapshot contains an invalid task entry.');
     }
-    result[id] = {status: entry.status, owner: entry.owner, note: entry.note};
+    const status = snapshot.version === 1 && Object.hasOwn(initialProgress, id) ? 'Done' : entry.status;
+    result[id] = {status, note: entry.note};
   }
   return result;
 }
@@ -180,7 +215,7 @@ try {
 }
 function save() {
   try {
-    localStorage.setItem(storageKey, JSON.stringify({version: 1, tasks: state}));
+    localStorage.setItem(storageKey, JSON.stringify({version: 2, tasks: state}));
   } catch {
     storageAvailable = false;
     find('tracker-message').textContent = 'Browser storage is unavailable. Export a snapshot to keep your updates.';
@@ -269,11 +304,6 @@ function taskRow(task) {
       statusFilter.focus();
     }
   });
-  const owner = element('input');
-  owner.type = 'text';
-  owner.placeholder = 'Unassigned';
-  owner.value = entry.owner;
-  owner.addEventListener('input', () => update(task.id, {owner: owner.value}));
   const details = element('details');
   details.append(element('summary', 'Task details and notes'));
   if (task.detail) details.append(element('p', task.detail));
@@ -285,9 +315,8 @@ function taskRow(task) {
   const noteLabel = labeled('Notes for ' + task.title, note);
   noteLabel.className = 'note';
   details.append(noteLabel);
-  row.append(heading, labeled('Status', status), labeled('Owner', owner), details);
+  row.append(heading, labeled('Status', status), details);
   status.setAttribute('aria-label', 'Status for ' + task.title);
-  owner.setAttribute('aria-label', 'Owner for ' + task.title);
   return row;
 }
 function renderBoard() {
@@ -311,7 +340,7 @@ checks.forEach((input, index) => input.addEventListener('change', () => {
   renderBoard();
 }));
 find('export').addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify({version: 1, tasks: state}, null, 2)], {type: 'application/json'}));
+  const url = URL.createObjectURL(new Blob([JSON.stringify({version: 2, tasks: state}, null, 2)], {type: 'application/json'}));
   const link = element('a');
   link.href = url;
   link.download = 'spherex-progress.json';
