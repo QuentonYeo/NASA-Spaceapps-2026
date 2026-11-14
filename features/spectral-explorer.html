@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>FOV-linked spectral explorer</title>
+<body><main><h1>FOV-linked spectral explorer</h1>
+<h2>Flow and coordinate eligibility</h2>
+<p>Use the current FOV sequence, draw a native-pixel circle on its displayed native frame,
+then extract background-corrected mean brightness across observations. The backend fixes
+the sky region through the reference frame WCS. No coordinate re-entry or spectra uploads.</p>
+<p>Browse observations is the native spectral view. Its locked and per-frame contrast
+previews share the native grid. Aligned blink uses alignedImageData/alignedGrid and
+retains upstream reference/comparison selection, closest-wavelength default, add/remove,
+manual navigation, playback and shared contrast. Aligned images have no region or host
+overlay handlers. Region controls are disabled there. Return to
+native browse to draw or extract. Selecting a spectral measurement stops blink and
+selects its actual contributing native frame, including an explicit unavailable state.</p>
+<h2>Layout and interactions</h2>
+<p>Desktop: region controls, annotated image, spectrum, timeline and expandable table.
+Mobile tabs retain selection. One observation group is selected initially; comparisons
+filter returned measurements locally. Groups are ten-day-gap heuristics, not verified
+flyby passes. Catalogue integration remains on its separate feature branch. The spectral-only app has no catalogue dependency; a generic native overlay slot is retained for future integration.</p>
+<h2>Design and API</h2>
+<p>SVG works directly with React 19 without another plotting dependency. Brightness is
+labelled MJy/sr versus wavelength in micrometres. Negative values, uncertainties,
+bandwidth, date/group colours, hover/focus metadata and partial/missing quality states
+remain visible. POST /api/frames/{sequenceId}/spectra accepts sequenceId,
+referenceFrameId, circle {x,y,radiusPixels,innerRadiusPixels?,outerRadiusPixels?} and
+observationGroupIds. Coordinates are native zero-based pixel centres. Projection returns
+native image-edge rings. Backend owns cache keys and science extraction.</p>
+<p>Only committed edits and newly completed exposures request extraction. Group switching
+and frame navigation do not. Aborted requests cannot overwrite current results. Separate
+native/aligned rendering prevents interpreting a reprojected pixel as a detector pixel.</p>
+<h2>Validation and limits</h2>
+<p>Unit and desktop/mobile browser checks exercise native coordinates, progressive results,
+stale responses, source-frame selection and the aligned/native
+boundary. Browser science fixtures are explicitly synthetic; they are not live calibration
+validation. The matching region-spectra backend branch is required; the catalogue branch is not. No branch
+merges or publication are part of this feature.</p>
+<p>Discovery remains query-centre-only; retained FITS are bounded. All nonzero quality
+flags including SOURCE are rejected. Coverage uses pixel centres, aperture mapping uses
+local scale approximation, and uncertainty assumes independent noise. These are mean
+surface brightness measurements, not integrated planet fluxes or abundance estimates.
+SVG zoom/pan/export are not provided. See <a href="../frontend/README.md">frontend contract</a>
+and <a href="aligned-blink.html">aligned blink</a>.</p>
+</main></body></html>

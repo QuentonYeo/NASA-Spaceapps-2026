@@ -68,3 +68,8 @@ Display size offers native pixels, 4x, or fit-to-viewer. Scaling adds no detail.
 The WISE preset uses a 3-arcminute field (about 29 pixels across); the M101 preset
 uses 6 arcminutes (about 59 pixels across), matching the tutorial field size more
 closely. Changing FOV changes sky coverage, not the instrument resolution.
+
+## Spectral explorer
+
+Native sky-region selection and spectral API contracts are documented in
+[the spectral explorer feature notes](../features/spectral-explorer.html).

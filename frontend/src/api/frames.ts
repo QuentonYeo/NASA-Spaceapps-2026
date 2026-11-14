@@ -6,7 +6,8 @@ export interface SkyQuery {
 }
 export interface ApiError { code: string; message: string; retryable: boolean; retryAfterSeconds: number | null }
 export interface Frame {
-  id: string; visit: number; observedAtUtc: string; release: string; detector: string;
+  id: string; visit: number; observationGroupId?: number; observedAtUtc: string; release: string; detector: string;
+  scienceStatus?: 'retained' | 'retention_limit' | 'unavailable';
   status: 'ready' | 'failed'; imageData: string | null;
   sharedImageData?: string | null;
   sharedDisplay?: { vmin: number; vmax: number } | null;
