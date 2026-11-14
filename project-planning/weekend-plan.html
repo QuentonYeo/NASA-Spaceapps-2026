@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPHEREx Sky Blink · Weekend build plan</title>
+<style>
+:root{color-scheme:dark;--bg:#101620;--panel:#192332;--ink:#f1f5fb;--muted:#bfcddd;--accent:#8ce4d0;--border:#35465c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.6 "DM Sans",system-ui,sans-serif}main{max-width:1060px;margin:auto;padding:clamp(20px,5vw,64px)}header{border-bottom:1px solid var(--border);padding-bottom:24px}h1{font-size:clamp(2.75rem,7vw,5rem);letter-spacing:-.065em;line-height:1;margin:.2em 0}h2{font-size:1.65rem;margin:0 0 .65em}h3{margin:.1em 0 .45em}p{margin:.45em 0 1em}a{color:var(--accent);text-underline-offset:.2em}nav{display:flex;flex-wrap:wrap;gap:8px 20px;margin:20px 0}section{margin-top:36px;scroll-margin-top:18px}.lead{max-width:69ch;font-size:1.12rem;color:var(--muted)}.date,strong{color:var(--accent)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}article,.callout{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px}article p:last-child,.callout p:last-child{margin-bottom:0}ul,ol{padding-left:1.4em}li+li{margin-top:.45em}code,pre{font-family:"IBM Plex Mono",monospace}pre{overflow:auto;padding:16px;background:#0c111a;border-radius:10px}label{cursor:pointer}input{accent-color:#65d9bb;margin-right:.55em}small{color:var(--muted)}@media print{:root{color-scheme:light;--bg:white;--ink:#142133;--panel:#f4f6f9;--muted:#38465a;--accent:#075c4f;--border:#aeb8c5}main{padding:0}nav{display:none}article{break-inside:avoid}pre{background:#eef1f5;white-space:pre-wrap}}
+
+:root{color-scheme:light;--bg:#f4f6fb;--panel:#fff;--ink:#182341;--muted:#52617a;--accent:#3051a5;--border:#d6deed}
+header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius:22px;border:0}header .lead{color:#d4dff6}header a,header .date{color:#bcd1ff}header nav{margin-bottom:0}main{max-width:1200px}pre{background:#eef2fa}button,select,input[type=text],textarea{font:inherit;color:inherit;border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:.42em .65em}button{cursor:pointer;font-weight:650}button:hover{background:#edf3ff}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #526dd7;outline-offset:2px}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:14px 0}.metric{padding:12px 15px;border-radius:12px;background:#eef2fb}.metric b{display:block;font-size:1.65rem;line-height:1.2}.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:16px 0}.toolbar label{display:grid;gap:4px}.toolbar .transfer{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}.progress-row{display:grid;grid-template-columns:minmax(140px,1fr) minmax(60px,2fr) auto;gap:10px;align-items:center;margin:.55em 0}progress{width:100%;height:12px;accent-color:#526dd7}.lane{margin:18px 0}.task{display:grid;grid-template-columns:minmax(0,2fr) minmax(124px,1fr) minmax(124px,1fr);gap:10px;padding:13px 0;border-top:1px solid var(--border);align-items:start}.task label{display:grid;gap:3px;font-size:.86rem}.task input,.task select,.task textarea{width:100%;min-width:0}.task details{grid-column:1/-1}.task summary{cursor:pointer;color:var(--accent);font-size:.9rem}.task details p{margin:.5em 0}.task .note{max-width:620px}.task[data-status="Blocked"]{border-left:4px solid #c95645;padding-left:9px}.task[data-status="Done"] .task-title{color:#196449}.task-title{font-weight:750}.task-meta{display:block}.checkpoint-count{font-weight:700;color:var(--accent)}#tracker-message{min-height:1.6em;margin:0}#ready li{list-style:none}#ready ul{padding-left:0}@media(max-width:570px){.task{grid-template-columns:1fr 1fr}.task-head{grid-column:1/-1}.toolbar .transfer{margin-left:0}}@media print{header{background:white;color:#182341}header .lead,header .date{color:#182341}.toolbar{display:none}.lane{break-inside:auto}.task{break-inside:avoid}}
+</style>
+</head>
+<body><main>
+<header>
+<p class="date">NASA Space Apps Challenge · 14–15 November 2026</p>
+<h1>SPHEREx Sky Blink</h1>
+<p class="lead">Build a public viewer that blinks through real infrared observations of one patch of sky, flags possible motion, and lets visitors inspect the evidence for themselves.</p>
+<nav aria-label="Plan sections"><a href="#tracker">Progress tracker</a><a href="#weekend">Weekend checkpoints</a><a href="#work">Workstreams</a><a href="#contract">Shared contract</a><a href="#scope">Scope decisions</a><a href="#ready">Demo checklist</a></nav>
+</header>
+<section id="tracker" aria-labelledby="tracker-title">
+<h2 id="tracker-title">Weekend progress</h2>
+<div class="callout">
+<div id="metrics" class="summary" aria-live="polite"></div>
+<div id="workstream-progress"></div>
+<p><small>Core progress counts implementation and rehearsal tasks. Stretch tasks are counted separately. Updates save in this browser. Export a snapshot to share it and import it to replace this browser’s tracker state.</small></p>
+</div>
+<div class="toolbar">
+<label>Workstream<select id="lane-filter"><option value="">All workstreams</option></select></label>
+<label>Status<select id="status-filter"><option value="">All statuses</option></select></label>
+<div class="transfer"><button type="button" id="export">Export snapshot</button><button type="button" id="import">Import snapshot</button><input type="file" id="snapshot-file" accept=".json,application/json" hidden></div>
+</div>
+<p id="tracker-message" role="status"></p>
+<div id="board"></div>
+<noscript>Enable JavaScript to use the tracker. The full weekend plan is below.</noscript>
+</section>
+<section id="weekend">
+<h2>Weekend checkpoints</h2>
+<ol>
+<li><strong>Saturday kickoff · first 30 minutes.</strong> Assign a lead to each workstream and name one integration owner. Agree on the manifest below. Give the frontend a mock manifest and two placeholder frames to build against while the archive search runs.</li>
+<li><strong>Saturday morning · prove the data.</strong> Find one known asteroid and aim for three usable exposures in one fixed sky patch. Confirm motion by eye. Save the source IDs, dates, local wavelengths, original cutouts and predicted positions. If the first target fails, try another target before expanding the pipeline.</li>
+<li><strong>Saturday afternoon · connect one real sequence.</strong> Load the same aligned frames in the viewer and detector. Confirm that a static star remains stationary and that overlays land correctly after zooming. Freeze the demo manifest shape once both consumers can read it.</li>
+<li><strong>Sunday morning · test the discovery flow.</strong> Run candidate ranking with the asteroid’s expected positions withheld. Record its rank and the number of higher-ranked false leads. Exercise one live query and the cached fallback.</li>
+<li><strong>Sunday afternoon · freeze and rehearse.</strong> Test the public build on a fresh browser, rehearse the evidence reveal, and reserve the final hour for submission and fixes. Confirm your local submission cutoff before scheduling the freeze.</li>
+</ol>
+</section>
+<section id="work">
+<h2>Four parallel workstreams</h2>
+<div class="grid">
+<article><h3>1. Archive and fixtures</h3>
+<ol><li>In <code>backend/notebooks/</code>, query IRSA SIA2 for single exposures from <code>spherex_dr1</code>. Use <code>spherex_qr3</code> when looking for newer observations. Save example metadata and record which fields carry IDs, dates and download URLs.</li><li>Use IRSA MOST to locate exposures covering a known asteroid’s predicted positions. Download FITS cutouts centered on a common sky patch. Verify actual shared coverage, target visibility, comparable local wavelengths and distinct times.</li><li>Write a small SPHEREx adapter in <code>backend/app/services/</code> with search and cutout steps. Validate RA, Dec and FOV, enforce server-side limits on FOV and frame count, and cache by sky region, release and selection parameters. Make errors and partial coverage visible.</li></ol>
+<p><strong>Handoff:</strong> reproducible fixture with source links and a cached demo selection. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/">IRSA archive access</a> · <a href="https://irsa.ipac.caltech.edu/Missions/spherex.html">MOST</a></p></article>
+<article><h3>2. Image processing</h3>
+<ol><li>Read <code>IMAGE</code>, <code>FLAGS</code>, <code>VARIANCE</code> and coordinate metadata. Select documented flag bits to mask. Estimate a local background and record the method. Keep invalid and uncovered pixels masked through alignment.</li><li>Align frames to one sky grid using the image coordinates. Compare clean reference stars to check alignment. Compute pairwise signed difference images only over common valid coverage at comparable wavelengths. Inspect residuals around bright stars before using them as detection evidence.</li><li>Export a common-scale preview and difference overlay for the UI. Keep calibrated arrays and masks for detection. Retain FITS provenance so an exported image can be traced to the archive.</li></ol>
+<p><strong>Handoff:</strong> arrays, display frames, and a shared grid with documented dimensions and orientation. <a href="https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/">SPHEREx data products</a></p></article>
+<article><h3>3. Viewer and integration</h3>
+<ol><li>In <code>frontend/</code>, load the fixture on startup. Build RA, Dec and FOV inputs, play/pause, frame selection, zoom and contrast. Contrast applies across the sequence and zoom preserves the view when changing frames.</li><li>Show time, local wavelength, release, loading and missing or partial coverage. Add frame selection for detection and toggleable difference, candidate and known-object overlays. Draw markers in processed frame coordinates and apply the same zoom transform as the image.</li><li>Connect FastAPI live search with a visible path back to the demo. For known stars, use Gaia DR3 positions propagated to the frame epoch where proper motion is available. For the verified asteroid, use MOST predictions at each exposure time.</li></ol>
+<p><strong>Handoff:</strong> a complete browser workflow exercised against the same manifest in cached and live modes. <a href="https://archive.stsci.edu/missions-and-data/gaia">Gaia DR3</a></p></article>
+<article><h3>4. Candidate detection</h3>
+<ol><li>Start with a baseline. Find point-like peaks in cleaned images or difference overlays, then link plausible positions across selected frames. Score repeat detections, signal relative to noise, track consistency and distance from flagged pixels. Describe two-frame results as tentative.</li><li>Return candidate ranks with frame IDs, marker positions and evidence. Validate against the held-out asteroid predictions after ranking. Record tolerances in pixels or angular distance and inspect the strongest artifacts.</li><li>If there are enough labeled tracks, train a small classifier on the same features and compare with the baseline on a separate field. Report both ranks and false leads. Show users whether the active ranking is rules-based or learned.</li></ol>
+<p><strong>Handoff:</strong> ranked candidates, evidence overlays and a short recovery report. Unmatched tracks remain candidates for review.</p></article>
+</div>
+</section>
+<section id="contract">
+<h2>Shared contract for the first integration</h2>
+<div class="callout">
+<p>Use the existing Python/FastAPI backend and React/TypeScript frontend. The backend handles archive queries, coordinates, processing and detection. The frontend renders aligned images and overlays. Start with a JSON fixture so both sides can work in parallel.</p>
+<pre><code>Sequence { id, centerRaDeg, centerDecDeg, fovDeg, grid, frames[] }
+Grid     { width, height, orientation }
+Frame    { id, observedAtUtc, release, detector, wavelengthUm,
+           previewUrl, sourceFitsUrl, coverage, status }
+Candidate { id, rank, score, method, reasons[], detections[] }
+Detection { frameId, xPx, yPx, raDeg, decDeg }</code></pre>
+<p>Use UTC ISO timestamps, ICRS coordinates in degrees, and micrometres for wavelength. Store preview pixels with a top-left origin. Define <code>wavelengthUm</code> at the sequence center and label it as such. Use wavelength at the source position for candidate comparisons where available. Represent unknown values as null and give incomplete frames an explicit status. Keep raw FITS, variance and masks on the backend. Keep the asteroid prediction overlay available as a separate reveal.</p>
+<p><strong>Suggested routes.</strong> <code>GET /api/demo</code> serves the cached manifest. <code>GET /api/frames</code> takes RA, Dec and FOV and returns the same manifest shape. <code>POST /api/detect</code> takes a sequence ID and selected frame IDs and returns ranked candidates. A cached demo can ship with precomputed candidates if on-demand processing is still slow.</p>
+</div>
+</section>
+<section id="scope">
+<h2>Scope decisions</h2>
+<div class="grid">
+<article><h3>Ship first</h3><p>Time playback at comparable wavelengths, zoom and contrast, frame metadata, one aligned real sequence and a candidate reveal. Use live IRSA search for a bounded request. If live access fails during judging, use the cached sequence and show its provenance.</p></article>
+<article><h3>Add once the demo works</h3><p>Try a wavelength navigator grouped into six detector bands, with gaps visibly disabled. For wavelength browsing, use DR1 All-Sky Cube channels or exposures from a chosen time window. Label a cube view as combined observations. For a spectrum, plot brightness against wavelength at a selected sky position using a cube or calibrated measurements across exposures.</p></article>
+<article><h3>Keep as stretch goals</h3><p>Add shareable URL state for region, mode and selected frame, then document embedding. Use the sequence manifest as the boundary for another archive or a user-supplied overlay. Start with one documented import format and validate coordinates and units before adding plugins.</p></article>
+<article><h3>Defer molecular maps</h3><p>Mapping methane, water or CO₂ requires validated spectral features, a continuum estimate and uncertainty checks. If you build the spectrum panel, use annotated feature wavelengths as an educational aid while the team evaluates whether the data support a map.</p></article>
+</div>
+</section>
+<section id="ready">
+<h2>Demo checklist</h2>
+<p><small>Use the checkboxes during rehearsal. These checks sync with the Rehearsal workstream on this page.</small></p>
+<ul>
+<li><label><input type="checkbox">Open the deployed viewer and play a real cached sequence on a fresh browser.</label></li>
+<li><label><input type="checkbox">Show the observation dates and confirm that reference stars stay aligned during playback.</label></li>
+<li><label><input type="checkbox">Change zoom and contrast, then switch frames and verify that overlays remain aligned.</label></li>
+<li><label><input type="checkbox">Select frames, show the ranked candidates and reveal the asteroid’s predicted positions.</label></li>
+<li><label><input type="checkbox">Report the asteroid’s rank and how many false leads ranked higher. State which ranking method ran.</label></li>
+<li><label><input type="checkbox">Try an empty or failed live query and demonstrate recovery using the cached sequence.</label></li>
+<li><label><input type="checkbox">Verify the public link, image provenance and submission materials before the local cutoff.</label></li>
+</ul>
+<p><a href="https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=resources">Official challenge resources</a> · <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex/">SPHEREx Python notebooks</a></p>
+</section>
+</main>
+<script>
+const statuses = ['To do', 'In progress', 'Blocked', 'Done'];
+const coreLanes = ['Archive & fixtures', 'Image processing', 'Viewer & integration', 'Candidate detection'];
+const laneTitles = [...coreLanes, 'Rehearsal', 'Stretch'];
+const milestones = ['Kickoff', 'Sat morning', 'Sat afternoon', 'Sun morning', 'Sun afternoon'];
+const work = [
+  [
+    ['Inspect IRSA’s query and file schema', 0],
+    ['Verify a real asteroid sequence', 1],
+    ['Build bounded live search and cache the demo', 2]
+  ],
+  [
+    ['Mask bad pixels and estimate background', 1],
+    ['Align exposures and inspect differences', 2],
+    ['Export previews, overlays and calibrated arrays', 2]
+  ],
+  [
+    ['Build playback, sky inputs, zoom and contrast', 2],
+    ['Show frame metadata and selectable overlays', 2],
+    ['Connect live search and demonstrate cached fallback', 3]
+  ],
+  [
+    ['Build the baseline candidate ranker', 2],
+    ['Measure blind asteroid recovery', 3],
+    ['Compare a learned ranker on a held-out field', 3, true]
+  ]
+];
+const tasks = [
+  {id: 'kickoff-owners', title: 'Assign workstream leads and an integration owner', lane: 2, milestone: 0, stretch: false},
+  {id: 'kickoff-fixture', title: 'Agree on the manifest and share mock frames', lane: 2, milestone: 0, stretch: false,
+    detail: 'Give the viewer and detector teams the same placeholder manifest and frame IDs so both can start while the archive search runs.'}
+];
+document.querySelectorAll('#work article').forEach((article, lane) => {
+  article.querySelectorAll('ol li').forEach((item, index) => {
+    const [title, milestone, stretch = false] = work[lane][index];
+    tasks.push({id: 'work-' + lane + '-' + index, title, lane, milestone, stretch, detail: item.textContent});
+  });
+});
+const checks = [...document.querySelectorAll('#ready input')];
+checks.forEach((input, index) => {
+  tasks.push({id: 'rehearsal-' + index, title: input.parentElement.textContent.trim(), lane: 4, milestone: 4, stretch: false});
+});
+[
+  ['Build the wavelength navigator', 'Group channels by detector band and label the cube as combined observations.'],
+  ['Add a spectrum panel', 'Plot brightness by wavelength at a selected sky position.'],
+  ['Support sharing and embedding', 'Encode region, mode and selected frame in the URL.'],
+  ['Import a user overlay', 'Choose one format and validate coordinates and units.'],
+  ['Evaluate a molecular map', 'Only attempt a map after validating spectral features, continuum and uncertainty.']
+].forEach(([title, detail], index) => {
+  tasks.push({id: 'stretch-' + index, title, detail, lane: 5, milestone: 4, stretch: true});
+});
+const storageKey = 'spherex-sky-blink-tracker-v1';
+const empty = {status: 'To do', owner: '', note: ''};
+const find = id => document.getElementById(id);
+let state = {};
+let storageAvailable = true;
+function normalize(snapshot) {
+  if (!snapshot || snapshot.version !== 1 || !snapshot.tasks ||
+      typeof snapshot.tasks !== 'object' || Array.isArray(snapshot.tasks)) {
+    throw new Error('Choose a snapshot exported from this tracker.');
+  }
+  const result = {};
+  for (const {id} of tasks) {
+    if (!Object.hasOwn(snapshot.tasks, id)) continue;
+    const entry = snapshot.tasks[id];
+    if (!entry || !statuses.includes(entry.status) || typeof entry.owner !== 'string' || typeof entry.note !== 'string') {
+      throw new Error('The snapshot contains an invalid task entry.');
+    }
+    result[id] = {status: entry.status, owner: entry.owner, note: entry.note};
+  }
+  return result;
+}
+try {
+  const saved = localStorage.getItem(storageKey);
+  if (saved) state = normalize(JSON.parse(saved));
+} catch {
+  find('tracker-message').textContent = 'Saved progress could not be loaded. You can import a snapshot to restore it.';
+}
+function save() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify({version: 1, tasks: state}));
+  } catch {
+    storageAvailable = false;
+    find('tracker-message').textContent = 'Browser storage is unavailable. Export a snapshot to keep your updates.';
+  }
+}
+function read(id) { return state[id] || empty; }
+function update(id, patch) {
+  state[id] = {...read(id), ...patch};
+  save();
+  renderProgress();
+}
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function option(value, label) {
+  const node = element('option', label);
+  node.value = value;
+  return node;
+}
+const laneFilter = find('lane-filter');
+const statusFilter = find('status-filter');
+laneTitles.forEach((title, index) => laneFilter.append(option(String(index), title)));
+statuses.forEach(status => statusFilter.append(option(status, status)));
+const core = tasks.filter(task => !task.stretch);
+const done = list => list.filter(task => read(task.id).status === 'Done').length;
+function progressRow(title, list) {
+  const row = element('div', undefined, 'progress-row');
+  const bar = element('progress');
+  bar.max = list.length;
+  bar.value = done(list);
+  bar.setAttribute('aria-label', title);
+  row.append(element('span', title), bar, element('span', done(list) + '/' + list.length));
+  return row;
+}
+function renderProgress() {
+  const metrics = [
+    [Math.round(100 * done(core) / core.length) + '%', 'Core complete'],
+    [done(core) + '/' + core.length, 'Core tasks done'],
+    [core.filter(task => read(task.id).status === 'In progress').length, 'Core in progress'],
+    [tasks.filter(task => read(task.id).status === 'Blocked').length, 'Blocked across plan'],
+    [done(tasks.filter(task => task.stretch)) + '/' + tasks.filter(task => task.stretch).length, 'Stretch tasks done']
+  ];
+  find('metrics').replaceChildren(...metrics.map(([value, label]) => {
+    const tile = element('div', undefined, 'metric');
+    tile.append(element('b', value), element('span', label));
+    return tile;
+  }));
+  find('workstream-progress').replaceChildren(progressRow('Core plan overall', core), ...laneTitles.map((name, lane) => {
+    const list = lane === 5 ? tasks.filter(task => task.stretch) : core.filter(task => task.lane === lane);
+    return progressRow(name, list);
+  }));
+  document.querySelectorAll('#weekend > ol > li').forEach((item, index) => {
+    const list = core.filter(task => task.milestone <= index);
+    let count = item.querySelector('.checkpoint-count');
+    if (!count) {
+      count = element('span', undefined, 'checkpoint-count');
+      item.append(count);
+    }
+    count.textContent = ' · ' + done(list) + '/' + list.length + ' core tasks due by this checkpoint complete';
+  });
+  checks.forEach((input, index) => { input.checked = read('rehearsal-' + index).status === 'Done'; });
+}
+function labeled(text, control) {
+  const label = element('label', text);
+  label.append(control);
+  return label;
+}
+function taskRow(task) {
+  const entry = read(task.id);
+  const row = element('div', undefined, 'task');
+  row.dataset.status = entry.status;
+  const heading = element('div', undefined, 'task-head');
+  heading.append(element('div', task.title, 'task-title'),
+    element('small', task.stretch ? 'Stretch · if time allows' : milestones[task.milestone], 'task-meta'));
+  const status = element('select');
+  statuses.forEach(value => status.append(option(value, value)));
+  status.value = entry.status;
+  status.addEventListener('change', () => {
+    update(task.id, {status: status.value});
+    row.dataset.status = status.value;
+    if (statusFilter.value && statusFilter.value !== status.value) {
+      renderBoard();
+      statusFilter.focus();
+    }
+  });
+  const owner = element('input');
+  owner.type = 'text';
+  owner.placeholder = 'Unassigned';
+  owner.value = entry.owner;
+  owner.addEventListener('input', () => update(task.id, {owner: owner.value}));
+  const details = element('details');
+  details.append(element('summary', 'Task details and notes'));
+  if (task.detail) details.append(element('p', task.detail));
+  const note = element('textarea');
+  note.rows = 2;
+  note.value = entry.note;
+  note.placeholder = 'Next step, blocker or link to evidence';
+  note.addEventListener('input', () => update(task.id, {note: note.value}));
+  const noteLabel = labeled('Notes for ' + task.title, note);
+  noteLabel.className = 'note';
+  details.append(noteLabel);
+  row.append(heading, labeled('Status', status), labeled('Owner', owner), details);
+  status.setAttribute('aria-label', 'Status for ' + task.title);
+  owner.setAttribute('aria-label', 'Owner for ' + task.title);
+  return row;
+}
+function renderBoard() {
+  const board = find('board');
+  board.replaceChildren();
+  laneTitles.forEach((title, lane) => {
+    if (laneFilter.value && Number(laneFilter.value) !== lane) return;
+    const visible = tasks.filter(task => task.lane === lane &&
+      (!statusFilter.value || read(task.id).status === statusFilter.value));
+    if (!visible.length) return;
+    const article = element('article', undefined, 'lane');
+    article.append(element('h3', title), ...visible.map(taskRow));
+    board.append(article);
+  });
+  if (!board.childElementCount) board.append(element('p', 'No tasks match these filters.'));
+}
+laneFilter.addEventListener('change', renderBoard);
+statusFilter.addEventListener('change', renderBoard);
+checks.forEach((input, index) => input.addEventListener('change', () => {
+  update('rehearsal-' + index, {status: input.checked ? 'Done' : 'To do'});
+  renderBoard();
+}));
+find('export').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify({version: 1, tasks: state}, null, 2)], {type: 'application/json'}));
+  const link = element('a');
+  link.href = url;
+  link.download = 'spherex-progress.json';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+const fileInput = find('snapshot-file');
+find('import').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  fileInput.value = '';
+  if (!file) return;
+  try {
+    const imported = normalize(JSON.parse(await file.text()));
+    if (Object.keys(state).length && !confirm('Replace this browser’s progress with the imported snapshot?')) return;
+    state = imported;
+    save();
+    renderProgress();
+    renderBoard();
+    if (storageAvailable) find('tracker-message').textContent = 'Snapshot imported.';
+  } catch {
+    find('tracker-message').textContent = 'Could not read this file. Choose a JSON snapshot exported from this tracker.';
+  }
+});
+renderProgress();
+renderBoard();
+</script>
+</body></html>
