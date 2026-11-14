@@ -61,12 +61,13 @@ S3_OPTIONS = {
 
 
 def fetch_via_cutout_service(
-    uri: str, coord: SkyCoord, size: u.Quantity, retries: int = 6
+    url: str, coord: SkyCoord, size: u.Quantity, retries: int = 6
 ) -> fits.HDUList:
     """Method A. Returns the cutout MEF held in memory."""
-    url = cutout_url(uri, coord, size)
     for attempt in range(retries):
-        response = httpx.get(url, timeout=120, follow_redirects=True)
+        response = httpx.get(
+            cutout_url(url, coord, size), timeout=120, follow_redirects=True
+        )
         if response.status_code != 503:
             break
         time.sleep(2**attempt)  # back off: 1, 2, 4, 8 ... seconds
@@ -74,9 +75,9 @@ def fetch_via_cutout_service(
     return fits.open(io.BytesIO(response.content))
 
 
-def fetch_via_s3(uri: str, coord: SkyCoord, size: u.Quantity) -> Cutout:
+def fetch_via_s3(url: str, coord: SkyCoord, size: u.Quantity) -> Cutout:
     """Method B. Reads only the headers and the pixel box around `coord`."""
-    with fits.open(s3_path(uri), use_fsspec=True, fsspec_kwargs=S3_OPTIONS) as hdul:
+    with fits.open(s3_path(url), use_fsspec=True, fsspec_kwargs=S3_OPTIONS) as hdul:
         header = hdul["IMAGE"].header
         full_wcs = WCS(header)
         x, y = full_wcs.world_to_pixel(coord)
@@ -110,7 +111,7 @@ def fetch_via_s3(uri: str, coord: SkyCoord, size: u.Quantity) -> Cutout:
 
 
 def fetch_many(
-    uris, coord: SkyCoord, size: u.Quantity, method: str = "cutout"
+    urls, coord: SkyCoord, size: u.Quantity, method: str = "cutout"
 ) -> list[Cutout]:
     """Fetch many frames in parallel with bounded concurrency.
 
@@ -119,13 +120,13 @@ def fetch_many(
     httpx with a semaphore) so the event loop is never blocked.
     """
 
-    def one(uri):
+    def one(url):
         if method == "s3":
-            return fetch_via_s3(uri, coord, size)
-        return parse_cutout(fetch_via_cutout_service(uri, coord, size), coord)
+            return fetch_via_s3(url, coord, size)
+        return parse_cutout(fetch_via_cutout_service(url, coord, size), coord)
 
     with ThreadPoolExecutor(MAX_WORKERS) as pool:
-        return list(pool.map(one, uris))
+        return list(pool.map(one, urls))
 
 
 if __name__ == "__main__":
@@ -135,23 +136,23 @@ if __name__ == "__main__":
 
     target = SkyCoord(133.79513, -7.24515, unit="deg")
     size = 3 * u.arcmin
-    uris = list(Table.read(OUTPUT_DIR / "frames_wise0855.ecsv")["uri"][:8])
+    urls = list(Table.read(OUTPUT_DIR / "frames_wise0855.ecsv")["url"][:8])
 
-    hdul = fetch_via_cutout_service(uris[0], target, size)
+    hdul = fetch_via_cutout_service(urls[0], target, size)
     nbytes = sum(hdu.filebytes() for hdu in hdul)
     epsf_bytes = hdul["EPSF"].filebytes()
     print(f"one cutout: {nbytes / 1e6:.2f} MB, of which EPSF {epsf_bytes / 1e6:.2f} MB")
 
     for method in ("cutout", "s3"):
         start = time.perf_counter()
-        cutouts = fetch_many(uris, target, size, method)
+        cutouts = fetch_many(urls, target, size, method)
         print(
             f"{method:6s} {len(cutouts)} frames in {time.perf_counter() - start:.1f} s"
         )
 
     # Both methods should agree on the science values.
-    a = parse_cutout(fetch_via_cutout_service(uris[0], target, size), target)
-    b = fetch_via_s3(uris[0], target, size)
+    a = parse_cutout(fetch_via_cutout_service(urls[0], target, size), target)
+    b = fetch_via_s3(urls[0], target, size)
     print(f"wavelength: cutout {a.wavelength_um:.4f} um, s3 {b.wavelength_um:.4f} um")
     print(
         f"target pixel value: cutout {a.image[a.wcs.world_to_array_index(target)]:.4f}, "

@@ -149,7 +149,7 @@ if __name__ == "__main__":
     target = SkyCoord(133.79513, -7.24515, unit="deg")
     frames = Table.read(OUTPUT_DIR / "frames_wise0855.ecsv")
 
-    hdul = fetch_via_cutout_service(frames["uri"][0], target, 3 * u.arcmin)
+    hdul = fetch_via_cutout_service(frames["url"][0], target, 3 * u.arcmin)
     hdul.info()
 
     cutout = parse_cutout(hdul, target)

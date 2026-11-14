@@ -48,12 +48,12 @@ def render_png(
 ) -> None:
     """Write `data` as an RGBA PNG. NaN pixels become transparent.
 
-    `origin="lower"` keeps FITS orientation (row 0 at the bottom), so the PNG
-    matches the grid WCS: north up, east left.
+    The grid is already top-left origin (row 0 = north, see align_diff.py),
+    so rows are written as-is and PNG pixels match array indexes.
     """
     norm = ImageNormalize(interval=ManualInterval(vmin, vmax), stretch=stretch)
     colormap = matplotlib.colormaps[cmap].with_extremes(bad=(0, 0, 0, 0))
-    plt.imsave(path, colormap(norm(np.ma.masked_invalid(data))), origin="lower")
+    plt.imsave(path, colormap(norm(np.ma.masked_invalid(data))))
 
 
 if __name__ == "__main__":

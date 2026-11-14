@@ -10,6 +10,10 @@ noise-normalised difference from our plan.
 Every frame is reprojected onto ONE grid centred on the target (north up,
 6.15"/pixel). Then blinking, stacking and differencing are just array maths,
 and the browser can overlay every PNG with the same WCS.
+
+The grid's pixel origin is TOP-LEFT (row 0 = north edge), as the shared
+contract requires. So array[y, x], the PNG pixel and a Detection's (xPx, yPx)
+are all the same numbers, with no flipping anywhere.
 """
 
 import numpy as np
@@ -28,7 +32,7 @@ MAX_DWAVE_UM = 0.05
 
 
 def target_grid(coord: SkyCoord, fov: u.Quantity) -> tuple[WCS, tuple[int, int]]:
-    """A north-up TAN grid centred on `coord` with SPHEREx-sized pixels."""
+    """A north-up TAN grid centred on `coord` with SPHEREx-sized pixels, origin top-left."""
     n = (
         int(np.ceil(fov.to_value(u.arcsec) / PIXEL_SCALE_ARCSEC)) | 1
     )  # odd: target on a pixel centre
@@ -38,8 +42,8 @@ def target_grid(coord: SkyCoord, fov: u.Quantity) -> tuple[WCS, tuple[int, int]]
     wcs.wcs.crpix = [(n + 1) / 2, (n + 1) / 2]  # FITS pixels are 1-based
     wcs.wcs.cdelt = [
         -PIXEL_SCALE_ARCSEC / 3600,
-        PIXEL_SCALE_ARCSEC / 3600,
-    ]  # RA increases to the left
+        -PIXEL_SCALE_ARCSEC / 3600,
+    ]  # RA increases to the left; Dec decreases down the rows (top-left origin)
     return wcs, (n, n)
 
 
@@ -115,8 +119,8 @@ if __name__ == "__main__":
     rows_a, rows_b = d6[d6["visit"] == first], d6[d6["visit"] == last]
 
     # S3 avoids loading IRSA's cutout servers (see fetch_cutouts.py).
-    cutouts_a = fetch_many(list(rows_a["uri"]), target, fov, method="s3")
-    cutouts_b = fetch_many(list(rows_b["uri"]), target, fov, method="s3")
+    cutouts_a = fetch_many(list(rows_a["url"]), target, fov, method="s3")
+    cutouts_b = fetch_many(list(rows_b["url"]), target, fov, method="s3")
     print(
         f"visit {first}: {len(cutouts_a)} frames, visit {last}: {len(cutouts_b)} frames"
     )

@@ -6,14 +6,15 @@ Based on the IRSA "SPHEREx Intro" and "SPHEREx Cutouts" tutorials, cut down to
 what the `resolve` and `discover` services need.
 
 Two ways to search IRSA:
-- SIA (`Irsa.query_sia`): simple, returns ~50 standard ObsCore columns
-  including `cloud_access` (the S3 path). Lags new data by ~1 day.
-- TAP (`Irsa.query_tap`) with ADQL against the `spherex.*` tables: we pick only
-  the columns we need, it sees new data immediately, and we can join/filter
-  freely. We use TAP.
+- SIA2 (`Irsa.query_sia`): standard ObsCore columns, including `access_url`
+  (the file's link on IRSA: our source link) and `cloud_access` (its S3 path).
+- TAP (`Irsa.query_tap`) with ADQL against the `spherex.*` tables: free-form
+  joins/filters, but slower.
 
-Measured for WISE 0855 (Nov 2026): 258 frames, 6 detectors, 4 visits, ~8 s.
-That latency is why frame lists must be cached (short TTL, data arrives weekly).
+Measured for WISE 0855 (Nov 2026), same 258 frames from both:
+   SIA2  ~1.7 s      TAP  9-21 s
+We use SIA2. The ~1 day lag SIA has for new weekly data does not matter for
+DR1, which is a fixed release. Cache frame lists anyway (short TTL).
 """
 
 from pathlib import Path
@@ -21,7 +22,7 @@ from pathlib import Path
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astroquery.ipac.irsa import Irsa
 
 # The release is configuration, never hard-coded deeper in the code.
@@ -44,65 +45,64 @@ def resolve(name: str) -> SkyCoord:
 
 
 def find_frames(coord: SkyCoord, collections=COLLECTIONS) -> Table:
-    """Return one row per SPHEREx spectral image whose footprint contains `coord`.
+    """Return one row per SPHEREx spectral image whose footprint contains `coord`,
+    sorted by time, with only the columns we use.
 
-    Tables (from TAP_SCHEMA):
-    - spherex.plane       one row per image: footprint (`poly`), times, detector
-    - spherex.artifact    the file for each plane: `uri` (path on IRSA)
-    - spherex.observation the collection the image belongs to
+    Column notes:
+    - frame_id: stable ID, e.g. ivo://irsa.ipac/spherex_dr1?2025W19_1B_0116_1/D3
+    - detector: 'SPHEREx-D1' .. 'SPHEREx-D6'
+    - wave_min_m / wave_max_m: range of the WHOLE detector in metres, not the
+      wavelength at our target (that needs the file, see read_cutout.py)
+    - url: the file on IRSA. Also the base of cutout and S3 paths (below).
     """
-    ra, dec = coord.icrs.ra.deg, coord.icrs.dec.deg
-    collection_list = ", ".join(f"'{c}'" for c in collections)
-    # IRSA's ADQL parser rejects SQL "--" comments, so notes go here:
-    # - frame_id: stable ID, e.g. ivo://irsa.ipac/spherex_dr1?2025W19_1B_0116_1/D3
-    # - detector: 'SPHEREx-D1' .. 'SPHEREx-D6'
-    # - wave_min_m / wave_max_m: range of the WHOLE detector in metres, not
-    #   the wavelength at our target (that needs the file, see read_cutout.py)
-    query = f"""
-    SELECT
-        a.uri,
-        p.obs_publisher_did   AS frame_id,
-        p.energy_bandpassname AS detector,
-        p.time_bounds_lower   AS mjd_start,
-        p.time_bounds_upper   AS mjd_end,
-        p.energy_bounds_lower AS wave_min_m,
-        p.energy_bounds_upper AS wave_max_m,
-        p.provenance_version  AS version,
-        o.collection
-    FROM spherex.artifact a
-    JOIN spherex.plane p       ON a.planeid = p.planeid
-    JOIN spherex.observation o ON p.obsid = o.obsid
-    WHERE 1 = CONTAINS(POINT('ICRS', {ra}, {dec}), p.poly)
-      AND o.collection IN ({collection_list})
-    ORDER BY p.time_bounds_lower
-    """
-    return Irsa.query_tap(query).to_table()
+    # SIA2 rejects a zero radius; 1" behaves like "footprint contains the point".
+    frames = vstack(
+        [Irsa.query_sia(pos=(coord, 1 * u.arcsec), collection=c) for c in collections]
+    )
+    columns = {
+        "access_url": "url",
+        "obs_publisher_did": "frame_id",
+        "energy_bandpassname": "detector",
+        "t_min": "mjd_start",
+        "t_max": "mjd_end",
+        "em_min": "wave_min_m",
+        "em_max": "wave_max_m",
+        "obs_collection": "collection",
+    }
+    frames = frames[list(columns)]
+    frames.rename_columns(list(columns), list(columns.values()))
+    frames.sort("mjd_start")
+    return frames
 
 
 def add_visits(frames: Table, gap_days: float = VISIT_GAP_DAYS) -> Table:
     """Label frames with a visit number (0, 1, 2, ...). Frames must be time-sorted."""
-    mjd = np.asarray(frames["mjd_start"], dtype=float)  # TAP columns come back masked
+    mjd = np.asarray(
+        frames["mjd_start"], dtype=float
+    )  # query columns can come back masked
     new_visit = np.diff(mjd, prepend=mjd[0]) > gap_days
     frames["visit"] = np.cumsum(new_visit)
     return frames
 
 
-def cutout_url(uri: str, coord: SkyCoord, size: u.Quantity) -> str:
+def cutout_url(url: str, coord: SkyCoord, size: u.Quantity) -> str:
     """IRSA cutout service URL: the file URL plus ?center=<ra>,<dec>d&size=<deg>."""
     return (
-        f"https://irsa.ipac.caltech.edu/{uri}"
-        f"?center={coord.ra.deg},{coord.dec.deg}d&size={size.to_value(u.deg)}"
+        f"{url}" f"?center={coord.ra.deg},{coord.dec.deg}d&size={size.to_value(u.deg)}"
     )
 
 
-def s3_path(uri: str) -> str:
+def s3_path(url: str) -> str:
     """Same file in the public AWS bucket (anonymous access, us-east-1).
 
-    The TAP `uri` and the S3 key share a suffix:
-      ibe/data/spherex/dr1/level2/...fits  ->  s3://nasa-irsa-spherex/dr1/level2/...fits
+    The IRSA URL and the S3 key share a suffix:
+      https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/...fits
+      -> s3://nasa-irsa-spherex/dr1/level2/...fits
     (Checked against SIA's `cloud_access` column.)
     """
-    return "s3://nasa-irsa-spherex/" + uri.removeprefix("ibe/data/spherex/")
+    return "s3://nasa-irsa-spherex/" + url.removeprefix(
+        "https://irsa.ipac.caltech.edu/ibe/data/spherex/"
+    )
 
 
 if __name__ == "__main__":
