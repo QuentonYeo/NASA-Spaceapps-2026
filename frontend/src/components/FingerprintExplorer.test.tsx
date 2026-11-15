@@ -62,3 +62,23 @@ it('explains missing selection coordinates beside a preview-only native image', 
   expect(html).toContain('This cached image has no selection coordinates');
   expect(html).toContain('Reload field for selection');
 });
+
+it('keeps an empty spectrum plot visible with image-selection guidance', () => {
+  const state = { ...explorer(null), selection: null, busy: false };
+  const html = renderToStaticMarkup(<FingerprintPanel explorer={state} frames={[]} onSelect={() => {}} />);
+  expect(html).toContain('class="spectrum-plot"');
+  expect(html).toContain('Click the main image to analyse a spectrum.');
+  expect(html).toContain('Click a source on the main image');
+  expect(html).not.toContain('<circle');
+  expect(html).not.toContain('NaN');
+});
+it('keeps axes without invented samples during loading and for empty results', () => {
+  const loading = renderToStaticMarkup(<FingerprintPanel explorer={explorer(null)} frames={[]} onSelect={() => {}} />);
+  expect(loading).toContain('class="spectrum-plot"');
+  expect(loading).toContain('Loading spectrum...');
+  const empty = { ...fingerprint, channels: fingerprint.channels.map(c => ({ ...c, value: null })), usableChannels: 0 };
+  const html = renderToStaticMarkup(<FingerprintPanel explorer={explorer(empty)} frames={[]} onSelect={() => {}} />);
+  expect(html).toContain('class="spectrum-plot"');
+  expect(html).toContain('No usable channels. Try another region.');
+  expect(html).not.toContain('<circle');
+});

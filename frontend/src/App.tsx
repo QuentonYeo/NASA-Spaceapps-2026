@@ -1,10 +1,14 @@
+import { AppHeader } from './components/AppHeader';
+import { FrameMetadata } from './components/FrameMetadata';
+import { AnalysisTabs } from './components/AnalysisTabs';
+import type { AnalysisView } from './components/AnalysisTabs';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useFingerprint } from './state/useFingerprint';
 import { RegionImage } from './components/RegionImage';
 import { SaveKnownObject } from './components/SaveKnownObject';
 import { readSavedKnownObjects, savedObjectKeyPrefix, savedValidationExample } from './state/savedKnownObjects';
-import { FingerprintControls, FingerprintPanel, ChannelMeasurements } from './components/FingerprintExplorer';
+import { FingerprintPanel, ChannelMeasurements } from './components/FingerprintExplorer';
 import { loadRegionProjection } from './api/regionProjection';
 import { useFrames } from './state/useFrames';
 import type { Frame, MotionCandidate } from './api/frames';
@@ -26,7 +30,7 @@ import type { ValidationExample } from './state/validationExamples';
 import './App.css';
 import './components/SpectralExplorer.css';
 
-function currentMode() {
+function currentMode(): 'home' | 'validate' | 'explore' {
   return window.location.hash === '#validate' ? 'validate' : window.location.hash === '#explore' ? 'explore' : 'home';
 }
 
@@ -79,7 +83,7 @@ function App() {
   const [zoom, setZoom] = useState(activeExample ? 'fit' : '4');
   const [analysisRadius, setAnalysisRadius] = useState(2.5);
   const [analysisRequest, setAnalysisRequest] = useState(0);
-  const [tab, setTab] = useState('image');
+  const [analysisView, setAnalysisView] = useState<AnalysisView>('static');
   const [contrast, setContrast] = useState('shared');
   const [reviewContrast, setReviewContrast] = useState('auto');
   const [blinkMode, setBlinkMode] = useState(!!activeExample);
@@ -89,8 +93,10 @@ function App() {
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
   const [candidateId, setCandidateId] = useState('');
   const [playing, setPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(650);
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [blinkIndex, setBlinkIndex] = useState(0);
+  const [timelineAutoplay, setTimelineAutoplay] = useState(false);
   const [brightness, setBrightness] = useState<{ key: string; points: LightCurvePoint[] }>();
 
   function preview(frame: Frame) {
@@ -138,7 +144,8 @@ function App() {
   }
   const observation = useAutoObservation(canAnalyze ? sequence.page?.sequenceId : undefined);
   const motion = canAnalyze && observation.result?.status === 'completed' ? observation.result : null;
-  const activeTrack = motion?.candidates.find((candidate) => candidate.id === reviewId);
+  const reviewedTrack = motion?.candidates.find((candidate) => candidate.id === reviewId);
+  const activeTrack = analysisView === 'motion' ? reviewedTrack : undefined;
   const timelineFrames = activeTrack ? blinkFrames : ready;
   const timelineIndex = timelineFrames.findIndex((frame) => frame.id === visible?.id);
   const autoContrastSequence = activeTrack && reviewContrast === 'auto' ? sequence.page?.sequenceId : undefined;
@@ -151,7 +158,7 @@ function App() {
   const measured = blinkMode && activeTrack?.detections.find((point) => point.frameId === visible?.id);
   const visibleGrid = blinkMode ? visible?.alignedGrid : visible?.grid;
   const lightCurveKey = `${activeExample?.id}:${sequence.page?.sequenceId}`;
-  const brightnessPoint = mode === 'validate' && brightness?.key === lightCurveKey
+  const brightnessPoint = analysisView === 'static' && mode === 'validate' && brightness?.key === lightCurveKey
     ? brightness.points.find(point => point.frameId === visible?.id) : undefined;
   function trajectoryFor(frame: Frame) {
     const vesta = vestaPosition(frame, sequence.query);
@@ -164,10 +171,16 @@ function App() {
   const trajectory = blinkMode && showTrajectory && visible ? trajectoryFor(visible) : null;
 
   useEffect(() => {
-    if (!blinkMode || !playing || blinkCount < 2) return;
-    const timer = window.setInterval(() => setBlinkIndex((current) => (current + 1) % blinkCount), 650);
+    if (!playing || timelineFrames.length < 2) return;
+    const timer = window.setInterval(() => {
+      if (timelineAutoplay) setSelectedId(current => {
+        const index = timelineFrames.findIndex(frame => frame.id === current);
+        return timelineFrames[(index + 1) % timelineFrames.length]?.id ?? current;
+      });
+      else setBlinkIndex(current => (current + 1) % blinkCount);
+    }, playbackSpeed);
     return () => window.clearInterval(timer);
-  }, [blinkMode, playing, blinkCount]);
+  }, [blinkMode, playing, blinkCount, playbackSpeed, timelineFrames, timelineAutoplay]);
 
   const previousFrameId = ready[index - 1]?.id;
   const nextFrameId = ready[index + 1]?.id;
@@ -179,8 +192,34 @@ function App() {
     }
   }, [spectrumSequenceId, explorer.region, explorer.selection?.referenceFrameId, previousFrameId, nextFrameId]);
 
-  function resetBlink() {
-    setReviewId(null);
+  type ViewerState = { selectedId: string | null; blinkMode: boolean; appendedIds: string[] | null;
+    blinkIndex: number; candidateId: string; zoom: string; contrast: string };
+  const viewStates = useRef<Partial<Record<AnalysisView, ViewerState>>>({});
+  const viewSequence = useRef(sequence.page?.sequenceId);
+  useEffect(() => {
+    if (viewSequence.current !== sequence.page?.sequenceId) {
+      viewStates.current = {};
+      viewSequence.current = sequence.page?.sequenceId;
+    }
+  }, [sequence.page?.sequenceId]);
+
+  function changeAnalysisView(next: AnalysisView) {
+    if (next === analysisView) return;
+    viewStates.current[analysisView] = { selectedId, blinkMode, appendedIds, blinkIndex, candidateId, zoom, contrast };
+    const saved = viewStates.current[next];
+    setPlaying(false);
+    setSelectedId(saved?.selectedId ?? selectedId);
+    setBlinkMode(saved?.blinkMode ?? (mode === 'validate' || next === 'motion'));
+    setAppendedIds(saved?.appendedIds ?? null);
+    setBlinkIndex(saved?.blinkIndex ?? 0);
+    setCandidateId(saved?.candidateId ?? '');
+    setZoom(saved?.zoom ?? 'fit');
+    setContrast(saved?.contrast ?? 'shared');
+    setAnalysisView(next);
+  }
+
+  function resetBlink(clearReview = true) {
+    if (clearReview) setReviewId(null);
     setPlaying(false);
     setBlinkIndex(0);
     setAppendedIds(null);
@@ -206,6 +245,7 @@ function App() {
   }
 
   function reviewCandidate(track: MotionCandidate) {
+    changeAnalysisView('motion');
     const [first, ...remaining] = track.detections;
     resetBlink();
     setReviewId(track.id);
@@ -224,21 +264,23 @@ function App() {
   }
 
   function viewStationarySpectrum() {
-    setTab('spectrum');
+    changeAnalysisView('static');
+    setBlinkMode(false);
+    setPlaying(false);
     window.setTimeout(() => document.getElementById('stationary-region-spectrum')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   function selectStationaryRegion() {
+    changeAnalysisView('static');
     setBlinkMode(false);
     setPlaying(false);
-    setTab('image');
     window.setTimeout(() => document.getElementById('observation-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
   }
 
   function viewMovingAnalysis() {
-    setTab('image');
-    if (activeTrack) {
-      const [first, ...remaining] = activeTrack.detections;
+    changeAnalysisView('motion');
+    if (reviewedTrack) {
+      const [first, ...remaining] = reviewedTrack.detections;
       setSelectedId(first.frameId);
       setAppendedIds(remaining.map(point => point.frameId));
       setBlinkMode(true);
@@ -255,13 +297,12 @@ function App() {
   function leaveCandidateReview() {
     setBlinkMode(false);
     resetBlink();
-    setTab('image');
   }
 
   function selectFrame(id: string) {
     setSelectedId(id);
     if (!blinkMode && activeTrack) setPlaying(false);
-    else resetBlink();
+    else resetBlink(analysisView === 'motion');
   }
 
   const progress = showResults ? sequence.page?.progress : undefined;
@@ -305,7 +346,6 @@ function App() {
     if (mode === 'home') {
       setDetector('');
       setBlinkMode(false);
-      setTab('image');
       setMode('explore');
       window.location.assign('#explore');
     }
@@ -323,11 +363,14 @@ function App() {
   }
 
   function toggleBlinkPlayback() {
-    if (!playing && reference && mode !== 'validate') {
+    const start = !playing;
+    setTimelineAutoplay(start);
+    if (start && !timelineAutoplay && blinkMode && reference && mode !== 'validate') {
       setSelectedId(reference.id);
       setAppendedIds(chosenIds);
     }
-    setPlaying(!playing);
+    if (start && timelineAutoplay) setBlinkMode(false);
+    setPlaying(start);
   }
 
   if (mode === 'home') return <Home knownObjects={knownObjects} inputs={inputs} setInputs={setInputs} validation={validation}
@@ -394,15 +437,37 @@ function App() {
     </section>
   );
 
-  return <main className="shell workflow-shell" data-tab={mode === 'explore' ? tab : undefined}>
-    <header className="masthead">
-      <div className="brand"><span className="orbit" aria-hidden="true">✳</span> Sifting Skies <span> / SPHEREx</span></div>
-      <nav className="workspace-nav" aria-label="Workflows">
-        <a href="#home">Home</a>
-        <a href="#validate" aria-current={mode === 'validate' ? 'page' : undefined}>Validate</a>
-        <a href="#explore" aria-current={mode === 'explore' ? 'page' : undefined}>Explore</a>
-      </nav>
-    </header>
+  const observationSettings = (
+    <details className="panel controls observation-settings" open>
+        <summary>Observation settings</summary>
+        <h2>Search a field</h2>
+        <form onSubmit={submit}>
+          <ObservationFields inputs={inputs} setInputs={setInputs} />
+          <label htmlFor="detector">Detector</label>
+          <select id="detector" value={detector} onChange={(event) => setDetector(event.target.value)}>
+            <option value="">All detectors</option>
+            {['D1', 'D2', 'D3', 'D4', 'D5', 'D6'].map((band) => <option key={band}>{band}</option>)}
+          </select>
+          <label className="release-option">
+            <input type="checkbox" checked={includeQr3} onChange={event => setIncludeQr3(event.target.checked)} />
+            Include QR3 spectral images
+          </label>
+          <button className="primary" type="submit">{showResults && sequence.busy ? 'Start new search' : 'Start'} <span aria-hidden="true">↗</span></button>
+          {validation && <p className="error" role="alert">{validation}</p>}
+        </form>
+        <section className="suggested-fields" aria-label="Suggested fields">
+          <h3>Known Objects</h3>
+          <p className="hint">Choose a known field, then select Start. Saved observations are available at these exact coordinates and field of view.</p>
+          <div className="suggested-field-grid">{fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
+            <strong>{field.name}</strong><span>{field.reason}</span>
+            <span className="preset-cache">Saved observations available</span>
+          </button>)}</div>
+        </section>
+      </details>
+  );
+
+  return <main className="shell workflow-shell">
+    <AppHeader current={mode} />
     <section className="intro workflow-intro">
       {mode === 'validate' && activeExample && <p>Validate a known object</p>}
       <h1>{mode === 'validate' ? activeExample?.name ?? 'Validate a known object' : 'Explore for movement'}</h1>
@@ -410,31 +475,43 @@ function App() {
         ? 'Compare SPHEREx observations of a known object across dates.'
         : 'Choose a sky field and compare observations at different times.'}</p>
     </section>
-    {mode === 'explore' && <div className="mobile-tabs" role="tablist" aria-label="Explorer views">{['image', 'spectrum', 'measurements'].map(name => <button key={name} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}</button>)}</div>}
+    <div className={`analysis-layout${mode === 'explore' ? ' has-sidebar' : ''}`}>
+      {mode === 'explore' && <aside className="observation-sidebar" aria-label="Observation settings">{observationSettings}</aside>}
+      <div className="analysis-main">
+      <AnalysisTabs value={analysisView} onChange={changeAnalysisView} />
+      <div id="analysis-workspace" role="tabpanel" aria-labelledby={`analysis-tab-${analysisView}`} tabIndex={0}>
+
     <div className="observation-tools">
-      {autoObservation}
+      {analysisView === 'motion' && autoObservation}
       {mode === 'validate' && (activeExample?.id === 'rw-aur' || activeExample?.id === 'r-dra') &&
-        <LightCurve key={lightCurveKey} onMeasured={points => setBrightness({ key: lightCurveKey, points })}
+        <div hidden={analysisView !== 'static'}><LightCurve key={lightCurveKey} onMeasured={points => setBrightness({ key: lightCurveKey, points })}
           sequenceId={canAnalyze ? sequence.page?.sequenceId : undefined} outerWings={activeExample.id === 'r-dra'}
           selectedId={visible?.id} onSelect={(frameId, reveal) => {
             const frame = ready.find(item => item.id === frameId);
             if (!frame) return;
             showTimelineFrame(frame);
             if (reveal) imageStage.current?.scrollIntoView({ block: 'center' });
-          }} />}
+          }} /></div>}
       {downloadStatus}
     </div>
-    <div className={`workspace frame-workspace${mode === 'explore' ? ' spectral-workspace' : ''}`}>
+    <div className="workspace frame-workspace">
       <section className="panel viewer-panel" aria-label="Frame viewer">
         <section className="frames-timeline" aria-label="Frames timeline">
           <div className="section-heading">
             <h2>Frames timeline</h2>
             <div className="timeline-actions">
               <span className="tag">{timelineFrames.length} frames</span>
-              {activeTrack && <button className="text-button" onClick={resetBlink}>Show all frames</button>}
-              {blinkMode && blinkCount > 1 && <button className="blink-playback" onClick={toggleBlinkPlayback}>
-                {playing ? 'Pause blink' : `Play blink · ${blinkCount} frames`}
-              </button>}
+              {activeTrack && <button className="text-button" onClick={() => resetBlink()}>Show all frames</button>}
+              {timelineFrames.length > 1 && <>
+                <button className="blink-playback" onClick={toggleBlinkPlayback}>
+                  {playing ? 'Pause autoplay' : `Autoplay ${timelineFrames.length} frames`}
+                </button>
+                <label className="timeline-speed">Speed
+                  <select aria-label="Timeline autoplay speed" value={playbackSpeed} onChange={event => setPlaybackSpeed(Number(event.target.value))}>
+                    <option value={1200}>Slow ? 1.2 s</option><option value={650}>Medium ? 0.65 s</option><option value={250}>Fast ? 0.25 s</option>
+                  </select>
+                </label>
+              </>}
             </div>
           </div>
           {timelineFrames.length > 0 && <div className="filmstrip">
@@ -466,7 +543,7 @@ function App() {
             event.preventDefault();
             showTimelineIndex(timelineIndex + (event.key === 'ArrowRight' ? 1 : -1));
           }}>
-          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} onReload={reloadAnalysisField} loading={sequence.busy} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {analysisView === 'static' && mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} onReload={reloadAnalysisField} loading={sequence.busy} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
             <AlignedPreview key={`preview:${alignedAutoUrl(visible) ?? visible.id}`} autoUrl={alignedAutoUrl(visible)}
               lockedUrl={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`}
@@ -513,48 +590,19 @@ function App() {
             <div className="empty-state"><span className="sky-placeholder-icon" aria-hidden="true" /><h3>{blinkMode && ready.length ? 'No aligned frames available' : sequence.busy ? 'Listening for the first frame' : 'Start with a sky location'}</h3><p>{sequence.busy ? 'Images will appear here while the rest load.' : mode === 'validate' ? <a href="#home">Choose a known object on Home.</a> : 'Choose a field and select Start.'}</p></div>}
           <span className="stage-label">{timelineIndex >= 0 ? `FRAME ${timelineIndex + 1} / ${timelineFrames.length}` : 'SPHEREx / INFRARED'}</span><span className="stage-label right">{visibleGrid ? `${visibleGrid.width} × ${visibleGrid.height} PX` : 'AWAITING SIGNAL'}</span>
         </div>
-        {mode === 'explore' && !blinkMode && selected && selected.scienceStatus === 'retained' &&
+        {analysisView === 'static' && mode === 'explore' && !blinkMode && selected && selected.scienceStatus === 'retained' &&
           (explorer.selection?.referenceFrameId === selected.id ? <SaveKnownObject
             key={JSON.stringify(explorer.selection)} frame={selected} selection={explorer.selection}
             onSaved={() => setSavedObjects(readSavedKnownObjects())} />
             : <p className="preview-note">Click or drag a circle on the image to save a sky region as a known object.</p>)}
         <section className="frame-metadata" aria-label="Frame metadata">
-          <h2>Frame metadata</h2>
-          {!timelineFrames.length && <p className="hint">Frame details appear as images load.</p>}
-          {timelineFrames.length > 0 && <div className="blink-table-scroll" role="region" aria-label="Timeline frame metadata" tabIndex={0}>
-            <table className="blink-table">
-              <thead><tr>
-                <th scope="col">Frame</th><th scope="col">Observed (UTC)</th><th scope="col">Visit</th>
-                <th scope="col">Detector</th><th scope="col">Release</th><th scope="col">Wavelength at target (µm)</th>
-                {activeTrack && <><th scope="col">Measured RA / Dec</th><th scope="col">Peak S/N</th></>}
-                {blinkMode && <th scope="col">Blink order</th>}
-                {blinkMode && !activeTrack && blinkCount > 1 && <th scope="col">Actions</th>}
-              </tr></thead>
-              <tbody>{timelineFrames.map((frame, index) => {
-                const position = blinkMode ? blinkFrames.findIndex(item => item.id === frame.id) : -1;
-                const isVisible = frame.id === visible?.id;
-                const point = activeTrack?.detections.find(entry => entry.frameId === frame.id);
-                return <tr key={frame.id} className={isVisible ? 'active-frame' : undefined}>
-                  <th scope="row">
-                    <button aria-pressed={isVisible} onClick={() => showTimelineFrame(frame)}>{index + 1}</button>
-                  </th>
-                  <td>{frame.observedAtUtc.replace('T', ' ').replace('Z', '')}</td>
-                  <td>{frame.visit + 1}</td><td>{frame.detector}</td><td>{frame.release}</td>
-                  <td>{frame.wavelengthUm?.toFixed(3) ?? 'Unavailable'}</td>
-                  {activeTrack && <><td>{point ? `${point.ra.toFixed(5)}°, ${point.dec.toFixed(5)}°` : '—'}</td>
-                    <td>{point ? point.signalToNoise.toFixed(1) : '—'}</td></>}
-                  {blinkMode && <td>{position === 0 ? '1 · Reference' : position > 0 ? position + 1 : '—'}</td>}
-                  {blinkMode && !activeTrack && blinkCount > 1 && <td>{position > 0 &&
-                    <button aria-label={`Remove frame ${index + 1} from blink`} onClick={() => {
-                      showBlinkFrame(position === activeIndex ? 0 : activeIndex - Number(position < activeIndex));
-                      setAppendedIds(chosenIds.filter(id => id !== frame.id));
-                    }}>Remove from blink</button>}</td>}
-                </tr>;
-              })}</tbody>
-            </table>
-          </div>}
+          <FrameMetadata frame={visible} detection={measured || undefined} />
+          {blinkMode && !activeTrack && visible && reference && visible.id !== reference.id && <button className="text-button" onClick={() => {
+            showBlinkFrame(0);
+            setAppendedIds(chosenIds.filter(id => id !== visible.id));
+          }}>Remove current frame from blink</button>}
         <p className="preview-note">{blinkMode
-          ? `North up · 6.15 arcsec/pixel · ${autoContrastSequence ? 'auto contrast per frame' : 'locked contrast'}. Playback follows the Blink order column. The first comparison defaults to the closest available wavelength from the same detector.`
+          ? `North up · 6.15 arcsec/pixel · ${autoContrastSequence ? 'auto contrast per frame' : 'locked contrast'}. Playback follows the selected blink sequence. The first comparison defaults to the closest available wavelength from the same detector.`
           : (contrast === 'shared'
           ? selected && !selected.sharedImageData
             ? 'Locked contrast is unavailable for this frame. Showing auto contrast.'
@@ -567,7 +615,7 @@ function App() {
           <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
           <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
         </section>}
-        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} automatic={motion?.measurements?.[activeTrack.id]} />}
+        {reviewedTrack && spectrumSequenceId && <div hidden={analysisView !== 'motion'}><MovingCandidateAnalysis key={reviewedTrack.id} sequenceId={spectrumSequenceId} candidate={reviewedTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} automatic={motion?.measurements?.[reviewedTrack.id]} /></div>}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">
@@ -636,37 +684,13 @@ function App() {
         </div>}
         </details>
       </section>
-      {mode === 'explore' && <details className="panel controls observation-settings" open={!showResults || !sequence.query}>
-        <summary>Observation settings</summary>
-        <h2>Search a field</h2>
-        <form onSubmit={submit}>
-          <ObservationFields inputs={inputs} setInputs={setInputs} />
-          <label htmlFor="detector">Detector</label>
-          <select id="detector" value={detector} onChange={(event) => setDetector(event.target.value)}>
-            <option value="">All detectors</option>
-            {['D1', 'D2', 'D3', 'D4', 'D5', 'D6'].map((band) => <option key={band}>{band}</option>)}
-          </select>
-          <label className="release-option">
-            <input type="checkbox" checked={includeQr3} onChange={event => setIncludeQr3(event.target.checked)} />
-            Include QR3 spectral images
-          </label>
-          <button className="primary" type="submit">{showResults && sequence.busy ? 'Start new search' : 'Start'} <span aria-hidden="true">↗</span></button>
-          {validation && <p className="error" role="alert">{validation}</p>}
-        </form>
-        <section className="suggested-fields" aria-label="Suggested fields">
-          <h3>Suggested fields</h3>
-          <p className="hint">Choose a known field, then select Start. Saved observations are available at these exact coordinates and field of view.</p>
-          <div className="suggested-field-grid">{fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
-            <strong>{field.name}</strong><span>{field.reason}</span>
-            <span className="preset-cache">Saved observations available</span>
-          </button>)}</div>
-        </section>
-        {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={selectStationaryRegion}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} onRegionUpdated={viewStationarySpectrum} />)}
-      </details>}
-      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={activeTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
+      {analysisView === 'static' && mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={reviewedTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
     </div>
-    {mode === 'explore' && <ChannelMeasurements explorer={explorer} open={tab === 'measurements'} />}
+    {analysisView === 'static' && mode === 'explore' && <ChannelMeasurements explorer={explorer} />}
     {failed.length > 0 && <details className="panel failures"><summary>{failed.length} frames could not be loaded</summary><ul>{failed.map((frame) => <li key={frame.id}><strong>{frame.detector} · {frame.observedAtUtc}</strong><p>{frame.error?.message ?? 'Frame unavailable.'}</p></li>)}</ul></details>}
+      </div>
+      </div>
+    </div>
     <footer><span>Sifting Skies</span><span>NASA Space Apps 2026 · Archive data via backend</span></footer>
   </main>
 }

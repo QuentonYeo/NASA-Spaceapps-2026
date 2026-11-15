@@ -1,3 +1,4 @@
+import { AppHeader } from './components/AppHeader';
 import type { FormEvent } from 'react';
 import { ObservationFields } from './ObservationFields';
 import type { ObservationInputs } from './ObservationFields';
@@ -16,8 +17,8 @@ interface Props {
 }
 
 export function Home({ inputs, setInputs, validation, includeQr3, setIncludeQr3, knownObjects, onObserve, onValidate }: Props) {
-  return <main className="home">
-    <header className="home-header"><a href="#home" className="home-brand">Sifting Skies</a><span>SPHEREx infrared observation viewer</span></header>
+  return <main className="shell home">
+    <AppHeader current="home" />
     <section className="home-hero" style={{ backgroundImage: `linear-gradient(90deg, #0a0a0c 3%, #0a0a0ce8 31%, #0a0a0c52 76%), url(${galaxy})` }}>
       <div className="home-hero-content">
         <p className="home-kicker">SPHEREx · INFRARED SKY</p>

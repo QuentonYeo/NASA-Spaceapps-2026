@@ -16,7 +16,7 @@
 .region-controls form { margin-top: 18px; }
 .region-controls input { max-width: 100%; }
 .spectral-workspace { align-items: start; }
-.fingerprint-panel { max-height: 900px; overflow-y: auto; scrollbar-gutter: stable; overflow-anchor: none; }
+.fingerprint-panel { overflow: visible; }
 .selected-centre { min-height: 52px; }
 .linked-observation { display: block; width: 100%; text-align: left; padding: 14px; margin: 8px 0; background: var(--surface-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); font-size: 13px; line-height: 1.6; }
 .linked-observation:hover { background: var(--surface-hover); }
