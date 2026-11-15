@@ -15,7 +15,7 @@ export function Home() {
       <a href="#validate" className="home-path">
         <span className="home-kicker">GUIDED COMPARISON</span>
         <h2>Validate a known object</h2>
-        <p>Follow Arosa’s path, check alignment on M101, or try to spot Barnard’s Star’s subtle shift.</p>
+        <p>Watch Vesta move across three exposures, follow Arosa’s path, or check the viewer on a stationary field.</p>
         <span className="home-action">Choose an example <span aria-hidden="true">↗</span></span>
       </a>
       <a href="#explore" className="home-path">

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How astronomers check for motion | SPHEREx Sky Blink</title>
+<style>
+body{max-width:850px;margin:0 auto;padding:36px 20px 56px;background:#f3f7fa;color:#182b3d;font:1rem/1.65 system-ui,sans-serif}
+h1,h2,h3{line-height:1.18}h1{font-size:clamp(2rem,6vw,3.25rem)}section{margin-top:30px;border-top:1px solid #cbd9e2}a{color:#11635b}
+li+li{margin-top:.55em}nav{display:flex;gap:8px 20px;flex-wrap:wrap}table{width:100%;border-collapse:collapse;background:white}
+caption{text-align:left;font-weight:600;margin-bottom:6px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #cbd9e2}thead{background:#e7eff4}
+.table-scroll{overflow-x:auto}code{white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+<h1>How astronomers check for motion</h1>
+<p>A reference for future SPHEREx Sky Blink features. The workflows below describe how to gather evidence for a moving source in repeated observations. Aligned Blink currently supports visual review. The measurements and candidate checks described here are design inputs for future work.</p>
+<nav aria-label="On this page"><a href="#known">Known objects</a><a href="#unknown">Unknown candidates</a><a href="#vesta">Worked example</a><a href="#features">Feature design</a></nav>
+
+<section id="known">
+<h2>Recover a known object</h2>
+<ol>
+<li><strong>Predict where it should be.</strong> Generate an ephemeris, a list of predicted positions at observation times, preferably for the observing spacecraft. IRSA’s Moving Object Search Tool (MOST) uses the orbit to find SPHEREx exposures intersecting that path. A spatial search around one fixed coordinate finds images of the field and may miss exposures elsewhere on the path.</li>
+<li><strong>Choose exposures that can answer the question.</strong> For a blink, choose times far enough apart for a visible shift and frames with shared usable coverage. Prefer similar local wavelengths so sources are easier to compare. If the object leaves the common field, inspect individual cutouts around its predicted position. A cutout centered on the target follows it across exposures and is useful for measuring a faint signal.</li>
+<li><strong>Measure the signal in calibrated data.</strong> Use the FITS image and its sky-coordinate mapping, with quality flags, variance and a local background estimate. For a known position, measure the flux there even if the source is difficult to see by eye. This is called forced photometry. Where the source is clear, measure its centroid and compare the offset from the prediction to the positional uncertainty.</li>
+<li><strong>Check other positions and frames.</strong> Measure the same sky positions in the other exposures. If the signal follows the object's predicted positions over time while neighboring sources stay put, that supports the identification. Compare nearby blank patches and inspect coverage, masked pixels, bright-star artifacts and blends.</li>
+</ol>
+<p><a href="https://caltech-ipac.github.io/irsa-tutorials/most-queries/">IRSA MOST tutorial</a> · <a href="https://faculty.washington.edu/ivezic/Publications/SPHERExAsteroids2021.pdf">SPHEREx asteroid photometry study</a> · <a href="https://irsa.ipac.caltech.edu/data/SPHEREx/docs/comet3iatlas/index.html">IRSA 3I/ATLAS observation list and photometry guidance</a></p>
+</section>
+
+<section id="unknown">
+<h2>Search for an unknown mover</h2>
+<ol>
+<li><strong>Establish what stays in place.</strong> Put frames on a common sky grid for blinking, or compare detections in sky coordinates using each frame’s WCS. Check registration against isolated stationary sources. A collective shift, a poorly masked pixel or a change in wavelength can mislead visual review. Gaia provides optical reference positions where visible infrared counterparts exist.</li>
+<li><strong>Find possible detections.</strong> Measure candidate sources in calibrated exposures. With suitable alignment, comparable bands and matching stellar profiles, difference images can highlight changes after subtracting stationary sources. Examine residuals near bright or blended stars before interpreting them as motion.</li>
+<li><strong>Link positions across times.</strong> Two positions give a trial direction and apparent speed. A third observation can test whether the candidate follows that path. A small group of linked detections is called a tracklet. Keep track of the exposure time, position, uncertainty, and whether a missing detection was inside usable coverage.</li>
+<li><strong>Try shift-and-stack for faint sources.</strong> Shift the exposures along a trial path before combining them. A real mover can add coherently along the correct path. Failed trial paths and neighboring blank positions help check whether a peak could arise by chance.</li>
+<li><strong>Check the candidate.</strong> Compare with known-object predictions and inspect individual exposures and stationary controls. Additional observations can strengthen the track and support orbit fitting. Record the evidence as a candidate until it can be confirmed.</li>
+</ol>
+<p><a href="https://doi.org/10.1088/0004-6256/150/4/125">Tracklets and digital tracking</a> · <a href="https://doi.org/10.3847/1538-3881/ae6cfc">Linking detections from difference images</a> · <a href="aligned-blink.html#validation">Aligned Blink validation and limits</a></p>
+</section>
+
+<section id="vesta">
+<h2>Worked example · Vesta</h2>
+<p>Open <a href="http://localhost:5173/#validate">Validate a known object</a>, keep <strong>Vesta</strong> selected and click <strong>Start</strong>. Its three exposures are selected automatically. The amber circle marks Vesta in the active frame, and the dashed line connects the three checked positions. Turn off <strong>Show Vesta trajectory</strong> to spot it unaided. For a manual replay in <a href="http://localhost:5173/#explore">Explore for movement</a>, enter RA <code>223.024527</code>, Dec <code>-11.992267</code>, and field of view <code>0.42</code> degrees with detector <code>D6</code>. Select <strong>Start</strong> and use <strong>Load next batch</strong> until the listed times are available. Switch to <strong>Aligned Blink</strong>, select these three frames, and use <strong>Fit viewer</strong>.</p>
+<div class="table-scroll"><table>
+<caption>DR1 exposures and Vesta’s predicted positions</caption>
+<thead><tr><th scope="col">Observed (UTC)</th><th scope="col">Expected RA, Dec (°)</th><th scope="col">Where to look</th></tr></thead>
+<tbody>
+<tr><td>2025-08-04 11:04:03.533</td><td>222.866022, −11.907528</td><td>Upper-right</td></tr>
+<tr><td>2025-08-05 00:07:01.891</td><td>223.024527, −11.992267</td><td>Center</td></tr>
+<tr><td>2025-08-05 13:07:54.451</td><td>223.183923, −12.077014</td><td>Lower-left</td></tr>
+</tbody>
+</table></div>
+<p>The local check downloaded the three DR1 cutouts and reprojected them with the same grid logic as the viewer. In each exposure, the bright peak appeared near that exposure’s predicted position. The other two positions stayed close to local background. The positions are about 100 native pixels apart per 13-hour step. This is a simple peak-versus-background check for the visual demonstration. Formal photometry would also model uncertainties and source profiles.</p>
+<p>Look for the bright spot taking those three positions while nearby stars remain roughly fixed. M101 is a stationary control, Arosa is a fainter two-position comparison, and Barnard’s Star is a test of how hard it is to judge a roughly one-pixel shift.</p>
+<p><a href="https://caltech-ipac.github.io/irsa-tutorials/most-queries/#spherex">IRSA’s Vesta example</a> · <a href="aligned-blink-validation.html">Other UI validation cases</a></p>
+</section>
+
+<section id="features">
+<h2>What future features should make easy</h2>
+<ul>
+<li><strong>Known-object search:</strong> find relevant exposure IDs from an ephemeris, load those frames first and let the user reveal expected positions after inspecting the images.</li>
+<li><strong>Mark and measure:</strong> store timestamps and measured sky coordinates separately from predicted positions. Show elapsed time, displacement and the expected location in a third exposure.</li>
+<li><strong>Evidence review:</strong> show coverage and mask status at the candidate position, compare local signal to background and show stationary controls next to the candidate.</li>
+<li><strong>Candidate suggestions:</strong> use calibrated pixels for measurements, explain why a sequence or track was suggested and include the original frame IDs so the user can reproduce the check.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>

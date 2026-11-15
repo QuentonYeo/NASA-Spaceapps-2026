@@ -645,7 +645,8 @@ footer{
   pointer-events: none;
 }
 
-.arosa-track line {
+.arosa-track polyline {
+  fill: none;
   stroke: #ffbd62;
   stroke-width: 1.5px;
   stroke-dasharray: 5px 4px;
