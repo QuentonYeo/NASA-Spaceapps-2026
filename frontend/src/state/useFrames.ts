@@ -27,6 +27,13 @@ function saveSearch(search: SavedSearch | null) {
 }
 
 export function useFrames() {
+  const [requestGroup] = useState(() => {
+    try {
+      const id = sessionStorage.getItem("spherex-search-group") ?? crypto.randomUUID();
+      sessionStorage.setItem("spherex-search-group", id);
+      return id;
+    } catch { return crypto.randomUUID(); }
+  });
   const cursor = useRef(0);
   const lastStatus = useRef<SequencePage["status"] | null>(null);
   const [saved] = useState(readSearch);
@@ -78,7 +85,7 @@ export function useFrames() {
       if (newSearch) {
         const accepted = preloadedId
           ? { sequenceId: preloadedId, pollUrl: `/api/frames/${preloadedId}` }
-          : await startSequence(newSearch, current.signal);
+          : await startSequence({ ...newSearch, requestGroup }, current.signal);
         if (current.signal.aborted) return;
         session.current = { ...accepted, query: newSearch, paused: false };
         setResumable(true);
@@ -116,7 +123,7 @@ export function useFrames() {
     } finally {
       if (!current.signal.aborted) setBusy(false);
     }
-  }, [receive]);
+  }, [receive, requestGroup]);
 
   useEffect(() => {
     if (saved) void run(undefined, true);

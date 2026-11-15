@@ -1,4 +1,6 @@
 export interface SkyQuery {
+  requestGroup?: string;
+  refresh?: boolean;
   ra: number; dec: number; fov: number;
   exposureIds?: string[];
   detector?: string;
@@ -52,6 +54,8 @@ export interface CandidateMeasurement {
 }
 
 export interface SequencePage {
+  dataSource?: 'archive' | 'demo_cache';
+  inventoryScope?: 'archive' | 'known_object';
   sequenceId: string; status: 'queued' | 'discovering' | 'running' | 'awaiting_more' | 'completed' | 'partial' | 'failed';
   scheduledCount: number; remaining: number; batchSize: number;
   nextCursor: number; hasMore: boolean; pollAfterSeconds: number;
@@ -132,8 +136,17 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  const { ra, dec, fov, exposureIds, detector, findMovers } = query;
-  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers });
+  const { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, refresh } = query;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, ...(refresh ? { refresh: true } : {}) });
+    } catch (error) {
+      // Only retry explicit rejections: a timed-out POST may already have created a job.
+      if (signal.aborted || !(error instanceof RequestError) || !error.retryable ||
+          ![429, 503].includes(error.status ?? 0) || attempt >= 3) throw error;
+      await wait(Math.min(10, Math.max(2 ** attempt, error.retryAfter)) * 1000, signal);
+    }
+  }
 }
 
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {

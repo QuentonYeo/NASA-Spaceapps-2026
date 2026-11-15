@@ -127,7 +127,16 @@ def test_auto_observation_links_all_downloaded_batches_without_refetching(tmp_pa
             assert len(result['measurements']['1']['result']['measurements']) == 3
             assert client.post(analysis_url).json() == result
             assert client.post(analysis_url + "?rerun=true").json()["status"] == "running"
-            assert wait_for(analysis_url, "completed") == result
+            wait_for(analysis_url, "completed")
+            # Motion completion publishes candidates before the separate measurement
+            # worker finishes; a rerun must wait for both before comparing results.
+            for _ in range(200):
+                rerun_result = client.get(analysis_url).json()
+                if (all(item['status'] == 'completed' for item in rerun_result['measurements'].values())
+                        and not restored.automatic_measurements_running):
+                    break
+                time.sleep(.005)
+            assert rerun_result == result
             assert cutouts.requests == ["frame-0", "frame-1", "frame-2"]
         assert cache.load(sequence_id).observation == result
     finally:

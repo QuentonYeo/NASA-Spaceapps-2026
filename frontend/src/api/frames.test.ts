@@ -32,12 +32,35 @@ describe('backend polling', () => {
     await check;
   });
 
-  it('posts a query once without automatically retrying job creation', async () => {
-    const fetch = vi.fn().mockResolvedValue(json({ error: { message: 'Busy', retryable: true } }, 503));
+  it('retries temporary job rejection with bounded attempts', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(json({ error: { message: 'Busy', retryable: true } }, 503)));
     vi.stubGlobal('fetch', fetch);
-    await expect(startSequence({ ra: 1, dec: 2, fov: .05 }, new AbortController().signal)).rejects.toThrow('Busy');
-    expect(fetch).toHaveBeenCalledTimes(1);
+    const run = startSequence({ ra: 1, dec: 2, fov: .05 }, new AbortController().signal);
+    const check = expect(run).rejects.toThrow('Busy');
+    await vi.runAllTimersAsync();
+    await check;
+    expect(fetch).toHaveBeenCalledTimes(4);
     expect(fetch.mock.calls[0][1].body).toBe('{"ra":1,"dec":2,"fov":0.05}');
+  });
+
+  it('recovers from temporary rejection without retrying an accepted job', async () => {
+    vi.useFakeTimers();
+    const accepted = { sequenceId: 'test', pollUrl: '/api/frames/test', status: 'queued' };
+    const fetch = vi.fn().mockResolvedValueOnce(json({ error: { message: 'Busy', retryable: true } }, 503))
+      .mockResolvedValueOnce(json(accepted, 202));
+    vi.stubGlobal('fetch', fetch);
+    const run = startSequence({ ra: 1, dec: 2, fov: .05 }, new AbortController().signal);
+    await vi.runAllTimersAsync();
+    await expect(run).resolves.toEqual(accepted);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not repeat job creation after an ambiguous network failure', async () => {
+    const fetch = vi.fn().mockRejectedValue(new TypeError('Network error'));
+    vi.stubGlobal('fetch', fetch);
+    await expect(startSequence({ ra: 1, dec: 2, fov: .05 }, new AbortController().signal)).rejects.toThrow('Cannot reach');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('honors the cursor and drains remaining pages after completion', async () => {
@@ -101,4 +124,15 @@ it('stops at a batch boundary and resumes from the prior completion cursor', asy
   await pollSequence('/api/frames/test', new AbortController().signal, vi.fn(), vi.fn(), 10);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(fetch.mock.calls[0][0]).toBe('/api/frames/test?after=10');
+});
+
+
+it('explicit reload bypasses demo replay while ordinary starts remain cache eligible', async () => {
+  const fetch = vi.fn().mockImplementation(() => Promise.resolve(json({ sequenceId: 'test', status: 'queued' }, 202)));
+  vi.stubGlobal('fetch', fetch);
+  const signal = new AbortController().signal;
+  await startSequence({ ra: 1, dec: 2, fov: .05, refresh: true }, signal);
+  await startSequence({ ra: 1, dec: 2, fov: .05 }, signal);
+  expect(JSON.parse(fetch.mock.calls[0][1].body).refresh).toBe(true);
+  expect(JSON.parse(fetch.mock.calls[1][1].body)).not.toHaveProperty('refresh');
 });

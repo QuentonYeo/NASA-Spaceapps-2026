@@ -10,6 +10,8 @@ class FrameQuery(BaseModel):
     exposureIds: list[str] | None = Field(default=None, min_length=1, max_length=12)
     detector: Literal["D1", "D2", "D3", "D4", "D5", "D6"] | None = None
     findMovers: bool = False
+    refresh: bool = False
+    requestGroup: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class BatchQuery(BaseModel):
@@ -134,6 +136,8 @@ class ObservationAnalysis(MotionSearch):
 
 class SequencePage(BaseModel):
     sequenceId: str
+    dataSource: Literal["archive", "demo_cache"] = "archive"
+    inventoryScope: Literal["archive", "known_object"] = "archive"
     centerRaDeg: float
     centerDecDeg: float
     fovDeg: float

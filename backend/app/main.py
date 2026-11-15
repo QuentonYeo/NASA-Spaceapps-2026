@@ -41,8 +41,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                 search_bytes, int(os.getenv("SEARCH_CACHE_TTL_SECONDS", str(7 * 86400))),
                 science_max_bytes=int(os.getenv("SEARCH_SCIENCE_CACHE_BYTES", str(1024 ** 3))),
             ) if search_bytes > 0 else None
-            jobs = LocalJobs(max_jobs=int(os.getenv("MAX_JOBS", "8")),
-                             ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")), search_cache=search_cache)
+            jobs = LocalJobs(max_jobs=int(os.environ["MAX_JOBS"]) if os.getenv("MAX_JOBS") else None,
+                             ttl=int(os.getenv("JOB_TTL_SECONDS", "120")), search_cache=search_cache)
             app.state.frames = FramesService(
                 IrsaArchive(tuple(os.getenv("IRSA_COLLECTIONS", "spherex_dr1").split(","))),
                 cutouts, FitsRenderer(), jobs,

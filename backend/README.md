@@ -86,12 +86,12 @@ Environment variables read at app startup:
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
 | `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new observation group |
 | `CUTOUT_WORKERS` | `4` | Concurrent cutouts per running job |
-| `MAX_JOBS` | `8` | Maximum retained jobs, including queued and completed |
-| `JOB_TTL_SECONDS` | `1800` | Retention after completion |
+| `MAX_JOBS` | unset | Optional maximum retained jobs; no job-count limit by default |
+| `JOB_TTL_SECONDS` | `120` | In-memory retention after completion; disk checkpoints remain resumable |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated frontend origins |
 
-Two sequence jobs execute concurrently; pending jobs are bounded by MAX_JOBS.
-At capacity POST returns 503. Retryable archive reads use at most three attempts,
+Two sequence jobs execute concurrently; additional jobs queue without a default count limit.
+An explicitly configured MAX_JOBS returns 503 at capacity. The viewer retries explicit retryable 429/503 search rejections up to three times with bounded backoff. Requests time out after 20 seconds; polling retries transient failures three times. Timed-out job creation is not automatically repeated because it may already have succeeded. Retryable archive reads use at most three attempts,
 exponential backoff plus jitter, Retry-After, a 90-second retry budget and bounded
 network timeouts. The budget is checked between operations/chunks; an in-flight
 blocking read can run until its network timeout. Exhausted frame failures do not
@@ -183,3 +183,5 @@ API, quality policy and limitations. Native FITS retention and sky-coordinate
 projection support selection; the per-exposure region-spectrum API is removed.
 
 After Auto observation detects candidates, default aperture measurements (2.5 native pixels) run sequentially in the background. The auto-observation response includes a measurements map keyed by candidate ID, containing status and completed results. Poll until detection and all measurements finish. Checkpoints preserve completed measurements; reopening resumes unfinished work. POST motion-photometry supports manual custom-radius measurements and reuses completed default results.
+
+Identical in-flight queries from a tab share a job. New queries supersede older work from that tab. Queued work expires after 15 seconds; active archive calls retain their network timeouts. A background worker cleans completed jobs after 120 seconds. Candidate measurements use a separate worker and checkpoint at completion.

@@ -28,20 +28,39 @@ class FramesService:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
-    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False) -> dict:
-        job = Job(str(uuid4()), region)
-        if find_movers:
-            job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
-        self.jobs.add(job)
-        self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
-        return {"sequenceId": job.id, "status": "queued",
-                "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
+    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False, refresh: bool = False, request_group: str | None = None) -> dict:
+        key = (region, tuple(sorted(exposure_ids or [])), detector, find_movers, request_group)
+        with self.jobs.lock:
+            if not refresh:
+                existing = next((job for job in self.jobs.items.values()
+                                 if job.request_key == key and job.status in {"queued", "discovering", "running"}), None)
+                if existing is not None:
+                    return self._accepted(existing)
+            if request_group:
+                for previous in list(self.jobs.items.values()):
+                    if (previous.request_group == request_group and
+                            (previous.status in {"queued", "discovering", "running", "awaiting_more"}
+                             or previous.automatic_measurements_running)):
+                        self.jobs.cancel(previous)
+            job = Job(str(uuid4()), region, requested_exposure_ids=exposure_ids, request_key=key, request_group=request_group)
+            if find_movers:
+                job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
+            self.jobs.add(job)
+            job.future = self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
+            return {"sequenceId": job.id, "status": "queued",
+                    "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
 
     def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None):
         try:
+            if job.cancelled.is_set():
+                return
+            if time.monotonic() - job.queued_at > 15:
+                raise AppError("SEARCH_QUEUE_TIMEOUT", "Search waited over 15 seconds for a worker. Please retry.", 503, True, 1)
             with job.lock:
                 job.status = "discovering"
             exposures = sorted({f.id: f for f in self.archive.discover(job.region)}.values(), key=lambda f: (f.mjd, f.id))
+            if job.cancelled.is_set():
+                return
             if exposure_ids:
                 exposures = [frame for frame in exposures if frame.id in exposure_ids]
                 if len(exposures) != len(exposure_ids):
@@ -86,7 +105,8 @@ class FramesService:
             start = job.scheduled
             job.scheduled = min(start + self._batch_limit(job), job.total)
             job.status, job.finished = "queued", None
-            self.jobs.executor.submit(self._run_batch, job, start)
+            job.queued_at = time.monotonic()
+            job.future = self.jobs.executor.submit(self._run_batch, job, start)
             return self._accepted(job)
 
     @staticmethod
@@ -103,6 +123,8 @@ class FramesService:
     def _run_batch(self, job: Job, start: int):
         try:
             with job.lock:
+                if job.cancelled.is_set():
+                    return
                 job.status = "running"
                 exposures = job.exposures[start:job.scheduled]
             spots = []
@@ -111,6 +133,8 @@ class FramesService:
                            for exposure, visit in exposures]
                 for future in as_completed(futures):
                     result, detected = future.result()
+                    if job.cancelled.is_set():
+                        return
                     if detected is not None:
                         spots.append(detected)
                     with job.lock:
@@ -148,6 +172,8 @@ class FramesService:
                   "scienceStatus": "unavailable", "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
         detected = None
         try:
+            if job.cancelled.is_set():
+                raise AppError("SEARCH_SUPERSEDED", "Replaced by a newer search.", 409)
             # Retain native science before producing any display-only reprojection.
             if self.cutout_cache is None:
                 cutout = self.cutouts.fetch(exposure, job.region)
@@ -197,7 +223,6 @@ class FramesService:
             if exposure.id not in job.science and job.science_bytes + len(compressed) <= self.max_science_bytes:
                 job.science[exposure.id] = compressed
                 job.science_bytes += len(compressed)
-        self.jobs.checkpoint(job)
         return native
 
     def auto_observation(self, sequence_id: str, *, start: bool = False, rerun: bool = False) -> dict:
@@ -269,11 +294,14 @@ class FramesService:
             if len(candidate["detections"]) > 10:
                 raise AppError("CANDIDATE_TOO_LARGE", "This candidate has too many supporting frames to measure at once.", 422)
             cached = analysis.get("measurements", {}).get(candidate_id, {})
-            if radius == 2.5 and cached.get("status") == "completed":
+            if (radius == 2.5 and cached.get("status") == "completed"
+                    and all(row["status"] != "unavailable" for row in cached["result"]["measurements"])):
                 return cached["result"]
             exposures = {exposure.id: exposure for exposure, _ in job.exposures}
             rows = []
             for point in candidate["detections"]:
+                if job.cancelled.is_set():
+                    raise AppError("SEARCH_SUPERSEDED", "Replaced by a newer search.", 409)
                 exposure = exposures.get(point["frameId"])
                 if exposure is None:
                     raise AppError("UNKNOWN_FRAME", "A candidate position does not belong to this sequence.", 422)
@@ -289,9 +317,20 @@ class FramesService:
                 except Exception:
                     logger.warning("Candidate measurement unavailable for frame %s", exposure.id, exc_info=True)
                     rows.append({**row, "status": "unavailable", "reason": "Native science could not be loaded or measured for this frame."})
-            return {"candidateId": candidate_id, "unit": "mJy", "processingVersion": "moving-aperture-quicklook-v1",
-                    "method": "native circular aperture with local clipped-median background",
-                    "radiusPixels": radius, "measurements": rows}
+            result = {"candidateId": candidate_id, "unit": "mJy", "processingVersion": "moving-aperture-quicklook-v1",
+                      "method": "native circular aperture with local clipped-median background",
+                      "radiusPixels": radius, "measurements": rows}
+            if not job.automatic_measurements_running:
+                if radius == 2.5:
+                    with job.lock:
+                        job.observation = {**job.observation, "measurements": {
+                            **job.observation.get("measurements", {}), candidate_id: {
+                                "status": "completed" if any(row["status"] != "unavailable" for row in rows) else "failed",
+                                "result": result,
+                            },
+                        }}
+                self.jobs.checkpoint(job)
+            return result
 
     def _ensure_candidate_measurements(self, job: Job):
         with job.lock:
@@ -307,11 +346,13 @@ class FramesService:
             job.observation = {**job.observation, "measurements": entries}
             job.automatic_measurements_running = True
             job.finished = None
-            self.jobs.executor.submit(self._measure_candidates, job, pending)
+            self.jobs.measurement_executor.submit(self._measure_candidates, job, pending)
 
     def _measure_candidates(self, job: Job, candidate_ids: list[str]):
         try:
             for candidate_id in candidate_ids:
+                if job.cancelled.is_set():
+                    break
                 self._measurement_state(job, candidate_id, {"status": "running"})
                 try:
                     result = self.measure_candidate(job, candidate_id)
@@ -334,7 +375,8 @@ class FramesService:
             job.observation = {**job.observation, "measurements": {
                 **job.observation.get("measurements", {}), candidate_id: entry,
             }}
-            self.jobs.checkpoint(job)
+            # Persist once when the measurement run finishes, rather than rewriting
+            # every preview for each queued/running/completed candidate update.
 
     def gaia_sources(self, sequence_id: str) -> dict:
         job = self.jobs.get(sequence_id)
