@@ -180,11 +180,13 @@ class FramesService:
             result.update(status="failed", error=AppError("FRAME_ERROR", "The frame could not be prepared.", 500).payload())
         return result, detected
 
-    def auto_observation(self, sequence_id: str, *, start: bool = False) -> dict:
+    def auto_observation(self, sequence_id: str, *, start: bool = False, rerun: bool = False) -> dict:
         job = self.jobs.get(sequence_id)
         with job.lock:
-            if job.observation is not None and (job.observation["status"] != "failed" or not start):
-                return job.observation
+            if job.observation is not None:
+                previous = job.observation["status"]
+                if not start or previous == "running" or (previous == "completed" and not rerun):
+                    return job.observation
             ready_count = sum(frame["status"] == "ready" for frame in job.results)
             aligned_ids = {frame["id"] for frame in job.results if frame.get("alignedImageData")}
             frames = [exposure for exposure, _ in job.exposures

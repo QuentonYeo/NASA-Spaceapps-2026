@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Automatic motion search | SPHEREx Sky Blink</title>
+<title>Automatic motion search | Sifting Skies</title>
 <style>
 body{max-width:800px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f3f7fa;font:1rem/1.65 system-ui,sans-serif}h1,h2{line-height:1.2}a{color:#11635b}
 </style>
@@ -11,7 +11,7 @@ body{max-width:800px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f
 <body>
 <main>
 <h1>Automatic motion search</h1>
-<p>In <a href="http://localhost:5173/#explore">Explore for movement</a>, enter RA, Dec and field of view, or pick a suggested field, then select <strong>Start</strong>. The viewer downloads the requested field through successive batches. When loading finishes, select <strong>Start auto observation</strong> to scan retained FITS data and rank candidate tracks. Select a candidate to open its supporting exposures in Aligned Blink.</p>
+<p>In <a href="http://localhost:5173/#explore">Explore for movement</a>, enter RA, Dec and field of view, or pick a suggested field, then select <strong>Start</strong>. The viewer downloads the requested field through successive batches. In either Explore or a known-object preset, use the Auto observation panel directly under the frame timeline. When loading finishes, including when frames were preloaded, select <strong>Start auto observation</strong> to scan retained FITS data and rank candidate tracks. Select a candidate to open its supporting exposures in Aligned Blink and filter the timeline to those exposures. Select <strong>Show all frames</strong> to return to the full timeline. Use <strong>Run auto observation again</strong> to repeat the scan on the same retained frames.</p>
 <h2>Reference search · Vesta field</h2>
 <ul>
 <li>RA <code>223.024527</code>°</li>
@@ -25,6 +25,7 @@ body{max-width:800px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f
 <li>On the calibrated native FITS image, estimate local background with a median filter. Find up to 24 strong local peaks per frame, using valid-pixel masks, robust noise estimates and the variance plane when available. Require an unmasked peak and at least 15 usable pixels in its 5 × 5 neighborhood. Project each measured peak onto the aligned sky grid.</li>
 <li>Compare exposures from the same detector and release. Reject peaks coincident with peaks in comparable frames within the search time window. Consider triples with at least 30 minutes between measurements and no more than two days across the track. Link three positions at different times on a roughly straight track. Require movement of at least three native pixels, an intermediate position within 1.6 pixels of the trial track and frame-center wavelengths within 15% of one another. Rank by the weakest detection’s peak signal-to-noise and the intermediate-position residual. Tracks sharing a detection or passing within four pixels in two supporting frames are deduplicated across the downloaded sequence. The candidate list appears after analysis finishes.</li>
 </ol>
+<p>For fixed-position brightness changes, open <a href="variable-star-light-curves.html">Brightness over time</a> in the RW Aurigae and R Draconis presets. A zero-track motion result does not measure stellar variability.</p>
 <h2>Review a candidate</h2>
 <p>Candidate review defaults to <strong>Auto per frame</strong>. The viewer uses the native preview’s per-frame brightness limits on the same north-up grid, so bright or dim exposures remain readable and marker positions stay aligned. Use <strong>Frame display and blink settings → Candidate contrast → Locked by detector</strong> to compare displayed brightness on a shared scale. Locked contrast may clip bright or dim exposures. Per-frame previews are generated on demand from retained FITS, including saved searches with retained science. If an auto preview is unavailable, the viewer shows the locked preview and identifies the fallback. The contrast setting affects display only.</p>
 <p>The violet circle follows the measured position in each supporting exposure. The table shows UTC time, sky coordinates and peak signal-to-noise. The candidate summary gives approximate displacement and elapsed time. Use nearby stars and Gaia markers to check alignment. Measured violet positions come from the image data. Known-object validation overlays use catalogue or predicted positions.</p>

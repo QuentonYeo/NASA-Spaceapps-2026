@@ -78,9 +78,22 @@ def observation_status(sequence_id: str, response: Response,
 
 @router.post("/{sequence_id}/auto-observation", status_code=202, response_model=ObservationAnalysis)
 def start_observation(sequence_id: str, response: Response,
-                      service: Annotated[Frames, Depends(get_frames_service)]):
+                      service: Annotated[Frames, Depends(get_frames_service)], rerun: bool = False):
     response.headers["Cache-Control"] = "no-store"
-    return service.auto_observation(sequence_id, start=True)
+    return service.auto_observation(sequence_id, start=True, rerun=rerun)
+
+
+@router.get("/{sequence_id}/light-curve")
+def light_curve(sequence_id: str, request: Request, response: Response, outer_wings: bool = False):
+    """Measure brightness at the fixed search center using retained native FITS."""
+    from app.domain.errors import AppError
+    from app.services.light_curve import measure_light_curve
+
+    job = request.app.state.frames.jobs.get(sequence_id)
+    if job.status not in {"completed", "partial"}:
+        raise AppError("OBSERVATION_NOT_READY", "Wait for the frame downloads to finish.", 409)
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    return measure_light_curve(job, outer_wings=outer_wings)
 
 
 @router.get("/{sequence_id}/gaia", response_model=GaiaCatalogue)

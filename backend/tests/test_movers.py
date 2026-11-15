@@ -117,6 +117,8 @@ def test_auto_observation_links_all_downloaded_batches_without_refetching(tmp_pa
             assert result["readyFrames"] == result["availableFrames"] == result["analyzedFrames"] == 3
             assert len(result["candidates"]) == 1
             assert client.post(analysis_url).json() == result
+            assert client.post(analysis_url + "?rerun=true").json()["status"] == "running"
+            assert wait_for(analysis_url, "completed") == result
             assert cutouts.requests == ["frame-0", "frame-1", "frame-2"]
         assert cache.load(sequence_id).observation == result
     finally:

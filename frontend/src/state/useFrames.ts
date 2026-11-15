@@ -3,7 +3,7 @@ import { RequestError, pollSequence, requestBatch, startSequence } from '../api/
 import type { Frame, SequencePage, SkyQuery } from '../api/frames';
 
 const storageKey = 'spherex-active-search';
-type SavedSearch = { sequenceId: string; pollUrl: string; query: SkyQuery; paused: boolean };
+type SavedSearch = { sequenceId: string; pollUrl: string; query: SkyQuery; paused: boolean; validationExampleId?: string };
 
 function readSearch(): SavedSearch | null {
   try {
@@ -40,6 +40,7 @@ export function useFrames() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState<SkyQuery | null>(saved?.query ?? null);
+  const [validationExampleId, setValidationExampleId] = useState(saved?.validationExampleId);
   const receive = useCallback((next: SequencePage) => {
     cursor.current = next.nextCursor;
     lastStatus.current = next.status;
@@ -52,7 +53,7 @@ export function useFrames() {
     if (next.error) setError(next.error.message);
   }, []);
 
-  const run = useCallback(async (input?: SkyQuery, restoring = false, restart = false) => {
+  const run = useCallback(async (input?: SkyQuery, restoring = false, restart = false, exampleId?: string, preloadedId?: string) => {
     if (!input && !session.current) return;
     controller.current?.abort();
     const current = new AbortController();
@@ -62,6 +63,8 @@ export function useFrames() {
       input.dec === existing.query.dec && input.fov === existing.query.fov &&
       input.findMovers === existing.query.findMovers && input.detector === existing.query.detector &&
       JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
+    const activeExampleId = input ? exampleId : existing?.validationExampleId;
+    setValidationExampleId(activeExampleId);
     const newSearch = sameQuery ? undefined : input;
     const restorePaused = restoring && !!existing?.paused;
     setError(''); setBusy(true); setPaused(restorePaused);
@@ -70,15 +73,17 @@ export function useFrames() {
       cursor.current = 0; lastStatus.current = null; session.current = null; setResumable(false);
       setFrames([]); setPage(null); setQuery(newSearch);
     }
-    setNotice(newSearch ? 'Discovering exposures...' : 'Reconnecting to the existing search...');
+    setNotice(newSearch && !preloadedId ? 'Discovering exposures...' : 'Reconnecting to the existing search...');
     try {
       if (newSearch) {
-        const accepted = await startSequence(newSearch, current.signal);
+        const accepted = preloadedId
+          ? { sequenceId: preloadedId, pollUrl: `/api/frames/${preloadedId}` }
+          : await startSequence(newSearch, current.signal);
         if (current.signal.aborted) return;
         session.current = { ...accepted, query: newSearch, paused: false };
         setResumable(true);
       }
-      const active = { ...session.current!, paused: restorePaused };
+      const active = { ...session.current!, paused: restorePaused, validationExampleId: activeExampleId };
       session.current = active;
       setResumable(true);
       saveSearch(active);
@@ -101,6 +106,7 @@ export function useFrames() {
           setResumable(false);
           setPaused(false);
           setNotice('');
+          if (preloadedId && newSearch) return 'preload-expired';
           setError('The previous search expired. Select Start to reload this view.');
           return;
         }
@@ -117,7 +123,10 @@ export function useFrames() {
     return () => controller.current?.abort();
   }, [run, saved]);
 
-  const start = (input: SkyQuery, restart = false) => run(input, false, restart);
+  async function start(input: SkyQuery, restart = false, exampleId?: string, preloadedId?: string) {
+    const result = await run(input, false, restart, exampleId, preloadedId);
+    if (result === 'preload-expired') await run(input, false, restart, exampleId);
+  }
   const resume = () => run();
 
   function stop() {
@@ -128,5 +137,5 @@ export function useFrames() {
     }
     setNotice('Stopped. Images are kept; the current backend batch may finish. Resume to continue.');
   }
-  return { frames, page, busy, error, notice, query, start, stop, resume, resumable, paused };
+  return { frames, page, busy, error, notice, query, validationExampleId, start, stop, resume, resumable, paused };
 }

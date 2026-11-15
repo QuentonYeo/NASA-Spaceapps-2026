@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SPHEREx Sky Blink · Weekend build plan</title>
+<title>Sifting Skies · Weekend build plan</title>
 <style>
 :root{color-scheme:dark;--bg:#101620;--panel:#192332;--ink:#f1f5fb;--muted:#bfcddd;--accent:#8ce4d0;--border:#35465c}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.6 "DM Sans",system-ui,sans-serif}main{max-width:1060px;margin:auto;padding:clamp(20px,5vw,64px)}header{border-bottom:1px solid var(--border);padding-bottom:24px}h1{font-size:clamp(2.75rem,7vw,5rem);letter-spacing:-.065em;line-height:1;margin:.2em 0}h2{font-size:1.65rem;margin:0 0 .65em}h3{margin:.1em 0 .45em}p{margin:.45em 0 1em}a{color:var(--accent);text-underline-offset:.2em}nav{display:flex;flex-wrap:wrap;gap:8px 20px;margin:20px 0}section{margin-top:36px;scroll-margin-top:18px}.lead{max-width:69ch;font-size:1.12rem;color:var(--muted)}.date,strong{color:var(--accent)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}article,.callout{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px}article p:last-child,.callout p:last-child{margin-bottom:0}ul,ol{padding-left:1.4em}li+li{margin-top:.45em}code,pre{font-family:"IBM Plex Mono",monospace}pre{overflow:auto;padding:16px;background:#0c111a;border-radius:10px}label{cursor:pointer}input{accent-color:#65d9bb;margin-right:.55em}small{color:var(--muted)}@media print{:root{color-scheme:light;--bg:white;--ink:#142133;--panel:#f4f6f9;--muted:#38465a;--accent:#075c4f;--border:#aeb8c5}main{padding:0}nav{display:none}article{break-inside:avoid}pre{background:#eef1f5;white-space:pre-wrap}}
@@ -16,7 +16,7 @@ header{background:#17264a;color:white;padding:clamp(22px,4vw,42px);border-radius
 <body><main>
 <header>
 <p class="date">NASA Space Apps Challenge · 14–15 November 2026</p>
-<h1>SPHEREx Sky Blink</h1>
+<h1>Sifting Skies</h1>
 <p class="lead">Build a public viewer that blinks through real infrared observations of one patch of sky, flags possible motion, and lets visitors inspect the evidence for themselves. Demo targets are the challenge’s five: Barnard’s Star, Epsilon Indi B, WISE 0855−0714 (RA 08h55m10.831s, Dec −07°14′42.53″), RW Aurigae and R Draconis.</p>
 <nav aria-label="Plan sections"><a href="#tracker">Progress tracker</a><a href="#weekend">Weekend checkpoints</a><a href="#work">Workstreams</a><a href="#contract">Shared contract</a><a href="#scope">Scope decisions</a><a href="#ready">Demo checklist</a></nav>
 </header>
@@ -235,7 +235,8 @@ tasks.push(
 );
 const initialState = Object.fromEntries(tasks.filter(task => task.initialStatus).map(task =>
   [task.id, {status: task.initialStatus, note: task.detail || ''}]));
-const storageKey = 'spherex-sky-blink-tracker-v1';
+const storageKey = 'sifting-skies-tracker-v1';
+const legacyStorageKey = 'spherex-sky-blink-tracker-v1';
 const empty = {status: 'To do', note: ''};
 const completedImageTasks = ['work-1-0', 'work-1-1', 'work-1-2'];
 const initialProgress = Object.fromEntries(completedImageTasks.map(id => [
@@ -262,7 +263,7 @@ function normalize(snapshot) {
   return result;
 }
 try {
-  const saved = localStorage.getItem(storageKey);
+  const saved = localStorage.getItem(storageKey) ?? localStorage.getItem(legacyStorageKey);
   if (saved) state = {...initialState, ...normalize(JSON.parse(saved))};
 } catch {
   find('tracker-message').textContent = 'Saved progress could not be loaded. You can import a snapshot to restore it.';

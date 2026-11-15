@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aligned Blink | SPHEREx Sky Blink</title>
+<title>Aligned Blink | Sifting Skies</title>
 <link rel="stylesheet" href="features.css">
 </head>
 <body>
 <main>
 <header>
-<p class="context">SPHEREx Sky Blink · 14 November 2026</p>
+<p class="context">Sifting Skies · 14 November 2026</p>
 <h1>Aligned Blink</h1>
 <p>Compare SPHEREx observations of the same sky field in place, using a common sky grid and a fixed brightness scale. The feature helps a person look for a source that shifts relative to nearby stationary stars.</p>
 </header>
@@ -19,7 +19,7 @@
 <section id="workflow">
 <p>Spectrum selection retains the original native science FITS before display reprojection. Native <code>imageData/grid</code> and aligned <code>alignedImageData/alignedGrid</code> are separate; spectrum extraction and aperture overlays use native IMAGE WCS. Use a native spectral image for those interactions or hide native overlays in aligned mode. <a href="spectral-explorer.html">102-channel spectrum</a></p>
 <h2>Using the viewer</h2>
-<p>The timeline sits above the frame, with metadata below it. After loading completes, hover or focus a known-object, measured-candidate, or Gaia marker for a floating card. Inspecting a marker pauses playback. The cards display sample details while this interaction is being validated.</p>
+<p>The timeline sits above the frame and lists all available frames, with metadata below the image. Selecting an aligned frame outside the current blink set starts a new comparison with that frame as reference. Selecting a frame without an aligned preview opens its native image. Candidate review narrows the timeline to the candidate’s supporting frames until you select <strong>Show all frames</strong>. After loading completes, hover or focus a known-object, measured-candidate, or Gaia marker for a floating card. Inspecting a marker pauses playback. The cards display sample details while this interaction is being validated.</p>
 <p>Choose an <a href="automatic-motion-search.html">automatic motion candidate</a> in Explore to open its supporting frames and review the measured positions in Aligned Blink.</p>
 <p>Open <strong>Validate a known object</strong> from Home to load a prepared comparison in Aligned Blink. For a custom search, choose <strong>Explore for movement</strong> and select <strong>Aligned blink</strong> in the viewer. <a href="viewer-workflows.html">Viewer workflows</a></p>
 <p>Turn on <strong>Gaia reference stars</strong> to mark expected catalogue positions on the aligned frames. <a href="gaia-reference-stars.html">Gaia reference stars</a></p>
@@ -89,7 +89,7 @@
 <p>For visual review, follow a candidate’s position relative to nearby stars across several frames at similar wavelengths. Brightness changes can also come from wavelength, background, noise, masking, and clipping. The current feature uses sky-coordinate alignment and shared contrast. Background subtraction, bandpass matching, subpixel registration refinement, and a current residual accuracy measurement are pending.</p>
 <p>For AI detection or quantitative measurements, use calibrated FITS brightness arrays, variance, masks, and WCS. Compare registered arrays on a common grid for pixel-level detection, or detect on the native arrays and link detections in RA and Dec. Future UI work discussed includes an interactive FITS-backed brightness stretch, candidate displacement in arcseconds, and a difference overlay after verifying registration and matching stellar profiles. <a href="../project-planning/image-processing/m101-ui/manifest.json">M101 FITS fixture manifest</a></p>
 </section>
-<footer>Project documentation for SPHEREx Sky Blink.</footer>
+<footer>Project documentation for Sifting Skies.</footer>
 </main>
 <p>Opening an Auto observation candidate keeps the shared sky grid and starts with per-frame contrast. Candidate review also offers locked detector contrast for brightness comparisons. See <a href="automatic-motion-search.html">Auto observation</a>.</p>
 </body>

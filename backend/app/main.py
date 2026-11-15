@@ -31,8 +31,13 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                        else IrsaCutouts(connections=2 * workers))
             cache = CutoutCache(int(os.getenv("CUTOUT_CACHE_BYTES", str(128 * 1024 * 1024))))
             search_bytes = int(os.getenv("SEARCH_CACHE_BYTES", str(256 * 1024 * 1024)))
+            cache_root = Path.home() / ".cache"
+            default_search_path = cache_root / "sifting-skies" / "searches-v1.sqlite3"
+            legacy_search_path = cache_root / "spherex-sky-blink" / "searches-v1.sqlite3"
+            if not default_search_path.exists() and legacy_search_path.is_file():
+                default_search_path = legacy_search_path
             search_cache = SearchCache(
-                Path(os.getenv("SEARCH_CACHE_PATH", str(Path.home() / ".cache" / "spherex-sky-blink" / "searches-v1.sqlite3"))),
+                Path(os.getenv("SEARCH_CACHE_PATH", str(default_search_path))),
                 search_bytes, int(os.getenv("SEARCH_CACHE_TTL_SECONDS", str(7 * 86400))),
                 science_max_bytes=int(os.getenv("SEARCH_SCIENCE_CACHE_BYTES", str(1024 ** 3))),
             ) if search_bytes > 0 else None
@@ -58,7 +63,7 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
             if cutouts is not None:
                 cutouts.close()
 
-    app = FastAPI(title="SPHEREx Sky Blink", lifespan=lifespan)
+    app = FastAPI(title="Sifting Skies", lifespan=lifespan)
     app.add_middleware(CORSMiddleware,
         allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173").split(","),
         allow_methods=["GET", "POST"], allow_headers=["Content-Type"],

@@ -1,4 +1,4 @@
-# SPHEREx Sky Blink
+# Sifting Skies
 
 NASA Space Apps 2026: [Planet X and SPHEREx](https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/).
 Enter a sky location and browse SPHEREx observations. The Python backend discovers

@@ -136,6 +136,6 @@ export function getGaiaCatalogue(sequenceId: string, signal: AbortSignal) {
 }
 
 export function fetchAutoObservation(sequenceId: string, signal: AbortSignal, start = false) {
-  return request<ObservationAnalysis>(`/api/frames/${encodeURIComponent(sequenceId)}/auto-observation`,
+  return request<ObservationAnalysis>(`/api/frames/${encodeURIComponent(sequenceId)}/auto-observation${start ? '?rerun=true' : ''}`,
     signal, undefined, start ? 'POST' : 'GET');
 }

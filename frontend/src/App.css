@@ -905,7 +905,7 @@ footer{
 }
 .auto-observation h3 { font-size: 15px; }
 .auto-observation p { color: #acbbce; font-size: 12px; margin-top: 6px; }
-.auto-observation .primary { width: auto; margin-top: 10px; }
+.auto-observation .primary { width: auto; }
 .auto-observation progress { width: 100%; margin-top: 8px; }
 .auto-observation .moving-candidates { margin: 12px 0 0; }
 
@@ -943,7 +943,6 @@ footer{
 .frame-metadata .blink-table caption { text-align: left; }
 .frame-settings > summary,
 .observation-settings > summary,
-.auto-observation > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 .frame-settings { border-top: 1px solid #293647; padding-top: 12px; }
 .frame-settings > summary { margin-bottom: 12px; }
 .observation-settings > summary { margin-bottom: 10px; }
@@ -1001,4 +1000,26 @@ footer{
   text-align: center;
   font-size: 0.75rem;
   pointer-events: none;
+}
+
+.light-curve .zoom-control { display: block; max-width: 320px; margin-top: 12px; }
+.light-curve details { margin-top: 8px; font-size: 13px; }
+.light-curve-chart { display: block; width: 100%; max-width: 720px; margin-top: 12px; }
+.light-curve-chart text { fill: #acbbce; font-size: 12px; }
+.light-curve-chart line { stroke: #34495f; }
+.light-curve-chart circle { fill: #71d9e5; }
+.light-curve-chart circle.selected { fill: #ffd39a; }
+
+.brightness-footprint {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.brightness-footprint polygon {
+  fill: #53e9ff;
+  stroke: #79edff;
+  stroke-width: 0.75px;
 }

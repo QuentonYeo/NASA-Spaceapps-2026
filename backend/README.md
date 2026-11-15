@@ -79,7 +79,7 @@ Environment variables read at app startup:
 | `FRAME_BATCH_SIZE` | `12` | Exposures retrieved per explicit batch |
 | `SEARCH_CACHE_BYTES` | `268435456` | Compressed preview checkpoint budget (0 disables it) |
 | `SEARCH_CACHE_TTL_SECONDS` | `604800` | Disk checkpoint retention |
-| `SEARCH_CACHE_PATH` | `~/.cache/spherex-sky-blink/searches-v1.sqlite3` | Local checkpoint database |
+| `SEARCH_CACHE_PATH` | `~/.cache/sifting-skies/searches-v1.sqlite3` | Local checkpoint database. Existing installations can still read the legacy database. |
 | `MAX_SCIENCE_BYTES` | `268435456` | Compressed FITS retention per active search |
 | `SEARCH_SCIENCE_CACHE_BYTES` | `1073741824` | Total disk budget for retained FITS inputs (0 disables FITS persistence) |
 | `CUTOUT_CACHE_BYTES` | `134217728` | In-memory FITS cache budget in bytes (0 disables it) |

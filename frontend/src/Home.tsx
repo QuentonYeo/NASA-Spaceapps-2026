@@ -14,7 +14,7 @@ interface Props {
 
 export function Home({ inputs, setInputs, validation, onObserve, onValidate }: Props) {
   return <main className="home">
-    <header className="home-header"><a href="#home" className="home-brand">SPHEREx <span>SKY BLINK</span></a><span>Infrared observation viewer</span></header>
+    <header className="home-header"><a href="#home" className="home-brand">Sifting <span>Skies</span></a><span>SPHEREx infrared observation viewer</span></header>
     <section className="home-hero" style={{ backgroundImage: `linear-gradient(90deg, #070a12 5%, #070a12eb 29%, #070a1240 72%), url(${galaxy})` }}>
       <div className="home-hero-content">
         <p className="home-kicker">SPHEREx · INFRARED SKY</p>
@@ -29,7 +29,11 @@ export function Home({ inputs, setInputs, validation, onObserve, onValidate }: P
         <ul className="home-examples">
           {examples.map((example) => <li key={example.id}>
             <button type="button" onClick={() => onValidate(example)}>
-              <span><strong>{example.name}</strong><small>{example.purpose}</small></span>
+              <span>
+                <strong>{example.name}</strong>
+                <small>{example.purpose}</small>
+                <small>RA {example.inputs.ra}° · Dec {example.inputs.dec}° · FOV {example.inputs.fov}°</small>
+              </span>
               <span aria-hidden="true">↗</span>
             </button>
           </li>)}
