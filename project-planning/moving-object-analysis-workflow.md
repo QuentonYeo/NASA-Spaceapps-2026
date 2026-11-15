@@ -24,7 +24,7 @@ The stationary mosaic result must not be described as a spectrum of a moving obj
 - Auto observation detects local peaks in retained native FITS frames, estimates local background and SNR, and links compatible peaks into candidate tracks.
 - Candidate review opens the supporting frames in Aligned Blink and draws a violet circle at each measured position.
 - Track summaries show detector, detection count, displacement, and elapsed time.
-- Verify includes a per-candidate quick-look measurement panel below the blink image and comparison table. It measures each recorded candidate position in its supporting native FITS frame and shows aperture flux versus time, sparse flux-versus-wavelength samples, a quality table, and CSV export.
+- Verify includes a per-candidate quick-look measurement panel below the blink image and comparison table. It measures each recorded candidate position in its supporting native FITS frame and shows flux-versus-wavelength samples, a quality table with UTC observation times, and CSV export.
 - In Verify, clicking the violet measured-position marker scrolls to that panel and shows the automatically queued results; hovering keeps the compact marker hint.
 - If a supporting science cutout is no longer retained in memory or the saved search cache, measurement reloads that exposure from the archive on demand.
 - The stationary-region spectrum selects a native-image sky position and measures a separate, combined-epoch 102-channel HiPS mosaic.
@@ -46,7 +46,7 @@ Implementation status below describes the staged UI scope, not completion of eve
 
 
 - **Stage 1 — Candidate Verify handoff: implemented for user review.** Candidate selection is labelled Verify, identifies the selected candidate and blink position, and provides a return to native observations. Validate remains clearly labelled for prepared examples. This stage does not add new measurements.
-- **Stage 2 — Moving-candidate quick-look: implemented for user review.** Verify can measure aperture flux at each detected position in retained native FITS frames and display flux-versus-time and sparse flux-versus-local-wavelength plots, a measurement table, and CSV export. See the limitations and measurement semantics below.
+- **Stage 2 — Moving-candidate quick-look: implemented for user review.** Verify can measure aperture flux at each detected position in retained native FITS frames and display a flux-versus-local-wavelength plot, a measurement table with UTC times, and CSV export. See the limitations and measurement semantics below.
 - **Stage 3 — Analysis navigation and responsive layout: implemented for user review.** Cross-links move between moving-candidate measurements and the separate stationary-region spectrum. Mobile Image, Spectrum and Measurements tabs switch the workspace view; region selection opens the spectrum.
 - **Next — Known-object path search and advanced methods:** begin after the user reviews the first three stages.
 
@@ -141,7 +141,7 @@ Use these as product and workflow references, not as evidence that their instrum
 
 - Implement a backend measurement endpoint for a selected candidate and its supporting frames.
 - Start with masked fractional-aperture photometry, local background, calibrated flux, approximate variance-plane statistical uncertainty when available, local wavelength/bandwidth, and explicit coverage/quality flags.
-- Render the marked aperture, measurement table, flux-versus-time, and sparse sampled flux-versus-local-wavelength.
+- Render the marked aperture, the measurement table including UTC times, and sampled flux versus local wavelength.
 - Add CSV export with the full provenance and method description.
 
 **Exit:** the same candidate and saved inputs reproduce the same per-frame measurements; incomplete or invalid samples are visible, not silently dropped.

@@ -4,31 +4,6 @@ import { fetchMotionPhotometry, RequestError } from './api/frames';
 
 const number = (value?: number | null, digits = 4) => value == null || !Number.isFinite(value) ? 'Unavailable' : value.toPrecision(digits);
 
-function FluxTimePlot({ result }: { result: MotionPhotometryResult }) {
-  const rows = result.measurements.filter(row => row.fluxMjy != null && row.status !== 'unavailable')
-    .sort((a, b) => Date.parse(a.observedAtUtc) - Date.parse(b.observedAtUtc));
-  if (!rows.length) return <p className="hint">No usable aperture measurements are available to plot.</p>;
-  const times = rows.map(row => Date.parse(row.observedAtUtc));
-  const fluxes = rows.map(row => row.fluxMjy!);
-  const t0 = Math.min(...times), t1 = Math.max(...times);
-  const f0 = Math.min(0, ...fluxes), f1 = Math.max(0, ...fluxes);
-  const x = (time: number) => 42 + (time - t0) / Math.max(1, t1 - t0) * 380;
-  const y = (flux: number) => 190 - (flux - f0) / Math.max(1e-9, f1 - f0) * 150;
-  return <svg className="motion-flux-plot" viewBox="0 0 460 235" role="img" aria-label="Quick-look candidate aperture flux versus observation time">
-    <path d="M42 20V190H422" fill="none" stroke="var(--chart-axis)" />
-    <line x1="42" x2="422" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />
-    {rows.map((row, index) => <g key={row.frameId}>
-      {row.uncertaintyMjy != null && <line x1={x(times[index])} x2={x(times[index])} y1={y(fluxes[index] + row.uncertaintyMjy)} y2={y(fluxes[index] - row.uncertaintyMjy)} stroke="var(--accent)" />}
-      <circle cx={x(times[index])} cy={y(fluxes[index])} r="4" fill={row.status === 'partial' ? 'var(--warning)' : 'var(--accent)'}><title>{`${row.observedAtUtc}: ${number(row.fluxMjy)} mJy, ${number(row.wavelengthUm, 3)} µm`}</title></circle>
-    </g>)}
-    <text x="230" y="220" textAnchor="middle">Observation time (UTC)</text>
-    <text transform="translate(13 112) rotate(-90)" textAnchor="middle">Aperture flux (mJy)</text>
-    <text x="39" y="28" textAnchor="end">{number(f1, 3)}</text><text x="39" y="190" textAnchor="end">{number(f0, 3)}</text>
-    <text x="42" y="205">{new Date(t0).toISOString().slice(0, 10)}</text><text x="422" y="205" textAnchor="end">{new Date(t1).toISOString().slice(0, 10)}</text>
-    {rows.length === 1 && <text x="230" y="48" textAnchor="middle">One sample; no time trend can be assessed.</text>}
-  </svg>;
-}
-
 function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
   const rows = result.measurements.filter(row => row.fluxMjy != null && row.wavelengthUm != null && row.status !== 'unavailable');
   if (!rows.length) return <p className="hint">No local wavelength samples are available to plot.</p>;
@@ -50,7 +25,6 @@ function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
     <text transform="translate(13 112) rotate(-90)" textAnchor="middle">Aperture flux (mJy)</text>
     <text x="49" y="28" textAnchor="end">{number(f1, 3)}</text><text x="49" y="190" textAnchor="end">{number(f0, 3)}</text>
     <text x="52" y="205">{number(low, 4)}</text><text x="422" y="205" textAnchor="end">{number(high, 4)}</text>
-    {rows.length < 4 && <text x="237" y="48" textAnchor="middle">Sparse samples; not a reconstructed spectrum.</text>}
   </svg>;
 }
 
@@ -118,7 +92,6 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
     {result && <>
       <p role="status">{result.measurements.filter(row => row.status !== 'unavailable').length} of {result.measurements.length} positions measured · {result.method}.</p>
       <p className="hint">Uncertainty is an approximate statistical estimate shown only when a usable FITS variance plane is present; it excludes correlated noise and calibration systematics. Flux-versus-wavelength coverage may be sparse because this candidate was linked in one detector.</p>
-      <FluxTimePlot result={result} />
       <FluxWavelengthPlot result={result} />
       <button className="text-button" onClick={download}>Export measurement CSV</button>
       <div className="table-scroll motion-measurement-scroll"><table className="motion-measurement-table">
