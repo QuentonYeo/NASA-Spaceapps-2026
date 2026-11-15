@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,6 +8,7 @@ from app.services.cutout_cache import CutoutCache
 from app.services.gaia import query_gaia
 from app.services.interfaces import Archive, Cutouts, Renderer
 from app.services.jobs import Job, LocalJobs
+from app.services.native_regions import compact_science
 
 logger = logging.getLogger(__name__)
 
@@ -120,16 +120,20 @@ class FramesService:
                   "scienceStatus": "unavailable", "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
         try:
             # Retain native science before producing any display-only reprojection.
-            cutout = self.cutouts.fetch(exposure, job.region)
+            if self.cutout_cache is None:
+                cutout = self.cutouts.fetch(exposure, job.region)
+                pixels = self.renderer.prepare(cutout, job.region)
+            else:
+                pixels = self.cutout_cache.prepare(exposure, job.region, self.cutouts, self.renderer)
+                cutout = pixels.native_fits
+            science = compact_science(cutout)
             with job.lock:
-                if job.science_bytes + len(cutout) <= self.max_science_bytes:
-                    job.science[exposure.id] = cutout
-                    job.science_versions[exposure.id] = hashlib.sha256(cutout).hexdigest()
-                    job.science_bytes += len(cutout)
+                if job.science_bytes + len(science) <= self.max_science_bytes:
+                    job.science[exposure.id] = science
+                    job.science_bytes += len(science)
                     result["scienceStatus"] = "retained"
                 else:
                     result["scienceStatus"] = "retention_limit"
-            pixels = self.renderer.prepare(cutout, job.region)
             group = (exposure.release, exposure.detector, pixels.unit)
             with job.lock:
                 if pixels.limits[1] > pixels.limits[0]:

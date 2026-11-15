@@ -4,23 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aligned Blink | SPHEREx Sky Blink</title>
-<style>
-:root{color-scheme:light;--ink:#182b3d;--muted:#496174;--line:#cedbe4;--accent:#11635b}
-*{box-sizing:border-box}body{margin:0;background:#f3f7fa;color:var(--ink);font:1rem/1.65 system-ui,sans-serif}
-main{max-width:880px;margin:auto;padding:40px 24px 64px}
-header{border-bottom:3px solid var(--accent);padding-bottom:20px}
-h1,h2,h3{line-height:1.2}h1{font-size:clamp(2rem,6vw,3.4rem);margin:.2em 0}
-h2{margin-top:2em}h3{margin-top:1.5em}.context{color:var(--muted);margin:0}
-nav{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px 20px}a{color:var(--accent)}
-table{width:100%;border-collapse:collapse;background:white}caption{text-align:left;font-weight:600;margin-bottom:8px}
-td,th{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}th{background:#e6eef4}
-li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid var(--line);margin-top:2em;padding-top:1em;color:var(--muted)}
-</style>
+<link rel="stylesheet" href="features.css">
 </head>
 <body>
 <main>
 <header>
-<p class="context">SPHEREx Sky Blink · Feature notes · 14 November 2026</p>
+<p class="context">SPHEREx Sky Blink · 14 November 2026</p>
 <h1>Aligned Blink</h1>
 <p>Compare SPHEREx observations of the same sky field in place, using a common sky grid and a fixed brightness scale. The feature helps a person look for a source that shifts relative to nearby stationary stars.</p>
 </header>
@@ -28,7 +17,7 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <a href="#workflow">Using the viewer</a><a href="#processing">Image processing</a><a href="#eligibility">Frame eligibility</a><a href="#archive">Archive behavior</a><a href="#validation">Validation and limits</a>
 </nav>
 <section id="workflow">
-<p>Region spectra retain the original native science FITS before display reprojection. Native <code>imageData/grid</code> and aligned <code>alignedImageData/alignedGrid</code> are separate; extraction and catalogue overlays use native IMAGE WCS. Use a native spectral image for those interactions or hide native overlays in aligned mode. <a href="region-spectra.html">Region spectra backend</a></p>
+<p>Spectrum selection retains the original native science FITS before display reprojection. Native <code>imageData/grid</code> and aligned <code>alignedImageData/alignedGrid</code> are separate; spectrum extraction and aperture overlays use native IMAGE WCS. Use a native spectral image for those interactions or hide native overlays in aligned mode. <a href="spectral-explorer.html">102-channel spectrum</a></p>
 <h2>Using the viewer</h2>
 <p>Open <strong>Validate a known object</strong> from Home to load a prepared comparison in Aligned Blink. For a custom search, choose <strong>Explore for movement</strong> and select <strong>Aligned blink</strong> in the viewer. <a href="viewer-workflows.html">Viewer workflows</a></p>
 <p>Turn on <strong>Gaia reference stars</strong> to mark expected catalogue positions on the aligned frames. <a href="gaia-reference-stars.html">Gaia reference stars</a></p>
@@ -38,6 +27,7 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <li>Choose a <strong>Frame to add</strong> and click <strong>Add frame</strong>. Repeat to build a longer sequence. Frames are appended in the order chosen. Select a frame number in the comparison table to show it, or remove any appended frame. Changing the reference rebuilds the selection around that reference.</li>
 <li>Choose <strong>Play blink</strong> to loop through the sequence at 650 ms per frame. Use Previous, Next, or the arrow keys with the image focused to step manually. The display size stays fixed while switching frames.</li>
 </ol>
+<p>Reference and comparison selectors shrink within the panel on narrow screens; long exposure labels do not widen the page.</p>
 <p>The selected-frame comparison table keeps each frame in playback order and highlights the one on screen. It shows UTC observation time, visit, detector, release, and wavelength at the target. Missing wavelength values are labeled unavailable. The table lets you compare timestamps and wavelengths during playback. Refresh restores the previous search and available previews when its job or a saved batch checkpoint is still retained. The blink selection can be built again from those previews.</p>
 </section>
 <section id="processing">
@@ -48,6 +38,7 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <p>The backend can rebuild aligned previews from cached FITS pixels when a new search is covered by a cutout from the same exposure. <a href="fits-cutout-cache.html">FITS cutout cache</a></p>
 <h3>Sky alignment</h3>
 <p>Native previews preserve the input FITS dimensions. Two native exposures can have the same nominal pixel scale while pointing or rotating differently, so a stationary source can shift in the viewer. Aligned Blink uses each cutout’s celestial WCS to reproject calibrated brightness values with bilinear interpolation onto a common north-up grid centered on the query at 6.15 arcseconds per pixel. Masked or uncovered pixels are transparent where interpolation has no valid result. <a href="../backend/app/services/rendering.py">Renderer</a></p>
+<p>Native sky coordinates retain the primary celestial SIP distortion. Wavelength and bandwidth use alternate WCS W with SIP coefficients removed from a temporary header before construction: wavelength is a detector-filter property, so sky distortion must not be applied. This avoids Astropy's inconsistent-SIP INFO message without muting logs or modifying retained FITS headers. The WCS-WAVE lookup remains approximate and is not a precision calibration claim. <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/">IRSA spectral WCS explanation</a>.</p>
 <h3>Brightness and quality</h3>
 <p>Auto per frame derives black and white points from each frame’s valid 0.5th and 99.5th percentiles. Locked by detector uses the first usable non-flat frame to fix the limits for its detector, release, and brightness unit for that search. Aligned previews use those shared limits. They can look identical to Auto when the frame set the limits or when a later frame has a similar brightness distribution.</p>
 <p>The renderer clips to the display limits and applies an asinh stretch before encoding 256 gray levels. PNG compression preserves the resulting image. Brightness precision is lost during clipping and quantization, and aligned reprojection also resamples the original spatial values. When quality arrays are available, the renderer masks selected instrument artifacts and pixels with nonfinite or nonpositive variance. Source and transient flags are preserved. <a href="../backend/app/services/rendering.py">Mask and preview implementation</a></p>
@@ -89,7 +80,7 @@ li+li{margin-top:.45em}code{overflow-wrap:anywhere}footer{border-top:1px solid v
 <section id="validation">
 <h2>Validation and limits</h2>
 <p><a href="aligned-blink-validation.html">UI validation examples with RA, Dec, field of view, and exact frame times</a>. The Arosa example includes a toggleable amber track and a time-dependent marker, with distinct styles for checked positions and estimates.</p>
-<p>The spectral explorer keeps native region drawing in Browse observations only. Optional catalogue integration remains a separate feature. Aligned blink uses its separate aligned preview grid with no native-pixel drawing or host-extraction handlers. Selecting a spectral measurement stops playback, leaves blink, and shows the contributing native frame. Reference selection, comparison add/remove, shared contrast and playback remain available in aligned mode. <a href="spectral-explorer.html">Spectral explorer coordinate contract</a></p>
+<p>The spectral explorer keeps native region drawing in Browse observations only. Gaia catalogue markers use the aligned query grid; native spectrum apertures remain hidden there. Aligned blink uses its separate aligned preview grid with no native-pixel drawing or host-extraction handlers. Selecting a linked native observation leaves blink and shows that frame. Reference selection, comparison add/remove, shared contrast and playback remain available in aligned mode. <a href="spectral-explorer.html">Spectral explorer coordinate contract</a></p>
 <p>A live M101 pair from D6 produced aligned 59 × 59 previews with shared contrast. A synthetic regression check verified that a shifted source maps to the same output pixel and that missing pixels stay transparent. Chrome checks covered manual switching, playback, appending, removing, and avoiding duplicates.</p>
 <p>The earlier M101 investigation compared six pairs using an 80% wavelength-band overlap criterion and found one qualifying pair, at 1.506 and 1.503 µm at the target. Its initial alignment used nearest-neighbor sampling and left residual centroid offsets of 0.12–0.39 pixels among four reference-star candidates. The brightest star left a positive-negative residual. These measurements describe the investigation pair and its processing, while the current viewer uses bilinear reprojection. <a href="../project-planning/weekend-plan.html#image-processing">M101 image-processing investigation</a></p>
 <p>For visual review, follow a candidate’s position relative to nearby stars across several frames at similar wavelengths. Brightness changes can also come from wavelength, background, noise, masking, and clipping. The current feature uses sky-coordinate alignment and shared contrast. Background subtraction, bandpass matching, subpixel registration refinement, and a current residual accuracy measurement are pending.</p>

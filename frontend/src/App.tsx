@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useFingerprint } from './state/useFingerprint';
+import { RegionImage } from './components/RegionImage';
+import { FingerprintControls, FingerprintPanel, ChannelMeasurements } from './components/FingerprintExplorer';
+import { loadRegionProjection } from './api/regionProjection';
 import { useFrames } from './state/useFrames';
 import type { Frame } from './api/frames';
 import { GaiaMarkers } from './GaiaOverlay';
@@ -8,6 +12,7 @@ import { useGaiaCatalogue } from './state/useGaiaCatalogue';
 import { Home } from './Home';
 import { examples, fields } from './state/validationExamples';
 import './App.css';
+import './components/SpectralExplorer.css';
 
 function currentMode() {
   return window.location.hash === '#validate' ? 'validate' : window.location.hash === '#explore' ? 'explore' : 'home';
@@ -35,6 +40,7 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState(sequence.query?.exposureIds ? 'fit' : '4');
+  const [tab, setTab] = useState('image');
   const [contrast, setContrast] = useState('shared');
   const [blinkMode, setBlinkMode] = useState(!!sequence.query?.exposureIds);
   const [showArosa, setShowArosa] = useState(true);
@@ -49,11 +55,14 @@ function App() {
     return (contrast === 'shared' ? frame.sharedImageData : null) ?? frame.imageData ?? undefined;
   }
   const frames = showResults ? sequence.frames : [];
+  const spectrumSequenceId = mode === 'explore' && showResults ? sequence.page?.sequenceId : undefined;
+  const explorer = useFingerprint(spectrumSequenceId, frames);
   const ready = frames.filter((frame) => frame.status === 'ready' && frame.imageData);
   const failed = frames.filter((frame) => frame.status === 'failed');
   const foundIndex = ready.findIndex((frame) => frame.id === selectedId);
   const index = foundIndex < 0 ? 0 : foundIndex;
-  const selected = ready[index];
+  const unavailableSelection = failed.find(frame => frame.id === selectedId);
+  const selected = unavailableSelection ? undefined : ready[index];
   const aligned = ready.filter((frame) => frame.alignedImageData && frame.alignedGrid && frame.sharedDisplay);
   const reference = aligned.find((frame) => frame.id === (selectedId ?? activeExample?.pair[0])) ?? aligned[0];
   const comparisons = reference && aligned.filter((frame) => frame.id !== reference.id &&
@@ -83,6 +92,16 @@ function App() {
     const timer = window.setInterval(() => setBlinkIndex((current) => (current + 1) % blinkCount), 650);
     return () => window.clearInterval(timer);
   }, [blinkMode, playing, blinkCount]);
+
+  const previousFrameId = ready[index - 1]?.id;
+  const nextFrameId = ready[index + 1]?.id;
+  useEffect(() => {
+    const region = explorer.region;
+    if (!spectrumSequenceId || !region) return;
+    for (const id of [previousFrameId, nextFrameId]) {
+      if (id && id !== explorer.selection?.referenceFrameId) void loadRegionProjection(spectrumSequenceId, id, region).catch(() => {});
+    }
+  }, [spectrumSequenceId, explorer.region, explorer.selection?.referenceFrameId, previousFrameId, nextFrameId]);
 
   function resetBlink() {
     setPlaying(false);
@@ -130,7 +149,8 @@ function App() {
       gaia.toggle(true);
       void sequence.start({ ...query, exposureIds: example.exposureIds });
     } else {
-      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true });
+      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true },
+        ready.length > 0 && ready.every(frame => frame.scienceStatus === 'unavailable'));
     }
   }
 
@@ -141,7 +161,7 @@ function App() {
 
   if (mode === 'home') return <Home />;
 
-  return <main className="shell workflow-shell">
+  return <main className="shell workflow-shell" data-tab={mode === 'explore' ? tab : undefined}>
     <header className="masthead">
       <div className="brand"><span className="orbit" aria-hidden="true">✳</span> SPHEREx <span> / SKY BLINK</span></div>
       <nav className="workspace-nav" aria-label="Workflows">
@@ -156,7 +176,8 @@ function App() {
         ? 'Open a prepared comparison and see how known motion looks in SPHEREx.'
         : 'Choose a sky field and compare observations at different times.'}</p>
     </section>
-    <div className="workspace">
+    {mode === 'explore' && <div className="mobile-tabs" role="tablist" aria-label="Explorer views">{['image', 'spectrum', 'measurements'].map(name => <button key={name} role="tab" aria-selected={tab === name} onClick={() => setTab(name)}>{name[0].toUpperCase() + name.slice(1)}</button>)}</div>}
+    <div className={mode === 'explore' ? 'workspace spectral-workspace' : 'workspace'}>
       <aside className="panel controls">
         <h2>{mode === 'validate' ? 'Choose an example' : 'Search a field'}</h2>
         <form onSubmit={submit}>
@@ -212,6 +233,7 @@ function App() {
           </p>}
           {sequence.page?.status === 'completed' && progress?.total === 0 && <p>No observations cover this location.</p>}
         </div>}
+        {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={() => { setBlinkMode(false); resetBlink() }}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} />)}
       </aside>
       <section className="panel viewer-panel" aria-label="Frame viewer">
         <div className="viewer-heading"><div><p className="eyebrow">{mode === 'validate' && activeExample ? activeExample.name : 'OBSERVATIONS'}</p><h2>{selected ? `Visit ${selected.visit + 1}` : 'Your window into the sky'}</h2></div><span className="tag">{ready.length ? `${index + 1} / ${ready.length}` : 'NO FRAMES YET'}</span></div>
@@ -283,7 +305,7 @@ function App() {
               move(index + (event.key === 'ArrowRight' ? 1 : -1));
             }
           }}>
-          {blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
             <img src={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`} />
             {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers catalogue={gaia.catalogue}
@@ -355,11 +377,13 @@ function App() {
             : 'Contrast stays fixed within a detector. Brightness can still change with wavelength.'
           : 'Each frame has its own brightness scale.') + ' Previews are unaligned.'}</p>
       </section>
+      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} />}
     </div>
     {ready.length > 0 && <section className="panel filmstrip-panel"><div className="section-heading"><h2>Observation timeline</h2><span className="tag">{ready.length} LOADED</span></div>
       <div className="filmstrip">{ready.map((frame, i) => <button key={frame.id} aria-label={`Select frame ${i + 1}, ${frame.detector}, ${frame.observedAtUtc}`} aria-pressed={(blinkMode ? reference : selected)?.id === frame.id} disabled={blinkMode && !frame.alignedImageData} onClick={() => selectFrame(frame.id)}>
         <img src={preview(frame)} alt="" loading="lazy" /><span>{String(i + 1).padStart(2, '0')} · V{frame.visit + 1}</span><small>{frame.observedAtUtc.slice(0, 10)}</small></button>)}</div>
     </section>}
+    {mode === 'explore' && <ChannelMeasurements explorer={explorer} />}
     {failed.length > 0 && <details className="panel failures"><summary>{failed.length} frames could not be loaded</summary><ul>{failed.map((frame) => <li key={frame.id}><strong>{frame.detector} · {frame.observedAtUtc}</strong><p>{frame.error?.message ?? 'Frame unavailable.'}</p></li>)}</ul></details>}
     <footer><span>SPHEREx Sky Blink</span><span>NASA Space Apps 2026 · Archive data via backend</span></footer>
   </main>

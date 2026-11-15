@@ -36,26 +36,6 @@ npm run lint
 npm test
 ```
 
-## Browser checks and screenshots
-
-Playwright + Chromium are installed for browser testing. From `frontend/`:
-
-```sh
-npm run test:e2e
-npm run test:e2e:ui
-npm run test:e2e:report
-```
-
-The runner starts Vite automatically (or reuses port 5173). Tests mock API responses,
-so they need no backend and never launch archive downloads. They cover desktop and
-mobile layouts, form submission, progressive polling, final-page draining, and image
-navigation. Screenshots are saved after each test under `test-results/`; the HTML
-report links them. Failures also retain traces. Generated artifacts are gitignored.
-`npm test` continues to run only the Vitest unit tests.
-
-On a fresh machine, run `npm install` then `npx playwright install chromium`.
-Use `npx playwright test --headed --project=desktop` for a visible test browser.
-
 ## Batches and display size
 
 The backend initially downloads 12 exposures, not the whole discovered sequence.
@@ -71,5 +51,5 @@ closely. Changing FOV changes sky coverage, not the instrument resolution.
 
 ## Spectral explorer
 
-Native sky-region selection and spectral API contracts are documented in
-[the spectral explorer feature notes](../features/spectral-explorer.html).
+Explore retains on-demand batching, detector filters and persistent searches, and adds native sky-region selection and the 102-channel spectrum. Validate keeps its guided pairs and Gaia/Arosa overlays. Preview-only restored searches can be reloaded with Start in Explore to recover science coordinates. Current spectral contracts are documented in
+[the spectral explorer documentation](../features/spectral-explorer.html).

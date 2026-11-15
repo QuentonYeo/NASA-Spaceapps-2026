@@ -1,11 +1,42 @@
-from app.services.spectra import Aperture, PixelPosition, SpectrumQuery, SpectrumResponse, sequence_spectrum
+from app.services.native_regions import Aperture, PixelPosition, sky_aperture
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response
 from app.domain.models import Region
 from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, SequencePage
 from app.services.interfaces import Frames
+from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus
 
 router = APIRouter(prefix="/frames", tags=["frames"])
+
+
+@router.post("/{sequence_id}/fingerprints", status_code=202, response_model=AcceptedFingerprint)
+def start_fingerprint(sequence_id: str, query: FingerprintQuery, request: Request, response: Response):
+    """Resolve a native FOV circle and asynchronously acquire the separate DR1 cube.
+
+    Stationary-sky quick look only. Combined epochs, no per-channel uncertainty,
+    no PSF-matched source photometry, chemical detections, or abundance estimates.
+    Native reference coordinates must be retained; aligned-image pixels are not
+    accepted as native coordinates. Cube downloads are disk-cached and bounded.
+    """
+    from app.domain.errors import AppError
+    job = request.app.state.frames.jobs.get(sequence_id)
+    with job.lock:
+        data = job.science.get(query.referenceFrameId)
+    if data is None:
+        raise AppError("SCIENCE_UNAVAILABLE", "Choose a loaded native image with retained coordinates.", 409)
+    try:
+        region = sky_aperture(data, query.circle)
+    except (ValueError, KeyError, OSError, TypeError) as exc:
+        raise AppError("INVALID_REFERENCE_REGION", str(exc), 422) from exc
+    response.headers["Cache-Control"] = "no-store"
+    return {**request.app.state.fingerprints.start(sequence_id, region, retry=query.retry), "region": region.model_dump()}
+
+
+@router.get("/{sequence_id}/fingerprints/{analysis_id}", response_model=FingerprintStatus)
+def get_fingerprint(sequence_id: str, analysis_id: str, request: Request, response: Response):
+    request.app.state.frames.jobs.get(sequence_id)
+    response.headers["Cache-Control"] = "no-store"
+    return request.app.state.fingerprints.get(analysis_id, sequence_id)
 
 
 def get_frames_service(request: Request) -> Frames:
@@ -61,16 +92,6 @@ def next_batch(sequence_id: str, query: BatchQuery, response: Response,
     return service.next_batch(sequence_id, query.after)
 
 
-@router.post("/{sequence_id}/spectra", response_model=SpectrumResponse,
-             responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse},
-                        410: {"model": ErrorResponse}, 422: {"model": ErrorResponse}})
-def extract_spectrum(sequence_id: str, query: SpectrumQuery, request: Request, response: Response):
-    """Explicit region extraction; navigation is independent. Reuses exposure measurements."""
-    job = request.app.state.frames.jobs.get(sequence_id)
-    result = sequence_spectrum(job, query)
-    response.headers["Cache-Control"] = "no-store"
-    return result
-
 
 @router.post("/{sequence_id}/frames/{frame_id:path}/coordinate")
 def pixel_coordinate(sequence_id: str, frame_id: str, query: PixelPosition, request: Request):
@@ -89,7 +110,6 @@ def pixel_coordinate(sequence_id: str, frame_id: str, query: PixelPosition, requ
             raise AppError("INVALID_PIXEL", "Pixel outside native frame.", 422)
         coord = WCS(hdus["IMAGE"].header).celestial.pixel_to_world(query.x, query.y)
         return {"ra": float(coord.ra.deg), "dec": float(coord.dec.deg)}
-
 
 
 @router.post("/{sequence_id}/frames/{frame_id:path}/projection")

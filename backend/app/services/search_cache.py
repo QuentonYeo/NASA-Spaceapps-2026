@@ -68,7 +68,8 @@ class SearchCache:
             from app.services.jobs import Job
             return Job(
                 sequence_id, Region(**data["region"]), finished=time.monotonic(),
-                status=data["status"], total=data["total"], results=data["results"],
+                status=data["status"], total=data["total"],
+                results=[{**frame, "scienceStatus": "unavailable"} for frame in data["results"]],
                 scheduled=data["scheduled"],
                 exposures=[(Exposure(**exposure), visit) for exposure, visit in data["exposures"]],
                 display_limits={(release, detector, unit): (low, high)

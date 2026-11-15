@@ -166,7 +166,9 @@ Initial local sample (eight WISE 0855 exposures, four workers): fresh IRSA 46.97
 pooled IRSA 16.41 s, S3 6.26 s. All rendered successfully. These are one-run results,
 not a guarantee; fixed ordering, remote caching, and network variability affect them.
 
-## Region extraction milestone
+## 102-channel spectrum
 
-See the [region spectra backend handoff](../project-planning/region-spectra-handoff.md)
-for the API contract, FITS retention, extraction method, caching and limitations.
+The viewer reads tutorial-style aperture photometry from a separate HiPS mosaic.
+See the [spectrum documentation](../features/spectral-explorer.html) for its
+API, quality policy and limitations. Native FITS retention and sky-coordinate
+projection support selection; the per-exposure region-spectrum API is removed.
