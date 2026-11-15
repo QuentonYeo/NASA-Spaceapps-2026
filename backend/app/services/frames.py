@@ -180,6 +180,25 @@ class FramesService:
             result.update(status="failed", error=AppError("FRAME_ERROR", "The frame could not be prepared.", 500).payload())
         return result, detected
 
+    def science_for_analysis(self, job: Job, exposure: Exposure) -> bytes:
+        """Return native science for a follow-up measurement, reacquiring an evicted cutout if needed."""
+        existing = job.science_cutout(exposure.id)
+        if existing is not None:
+            return existing
+
+        if self.cutout_cache is None:
+            pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
+        else:
+            pixels = self.cutout_cache.prepare(exposure, job.region, self.cutouts, self.renderer)
+        native = pixels.native_fits
+        compressed = gzip.compress(compact_science(native), compresslevel=1)
+        with job.lock:
+            if exposure.id not in job.science and job.science_bytes + len(compressed) <= self.max_science_bytes:
+                job.science[exposure.id] = compressed
+                job.science_bytes += len(compressed)
+        self.jobs.checkpoint(job)
+        return native
+
     def auto_observation(self, sequence_id: str, *, start: bool = False, rerun: bool = False) -> dict:
         job = self.jobs.get(sequence_id)
         with job.lock:

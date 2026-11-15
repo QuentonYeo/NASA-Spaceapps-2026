@@ -66,6 +66,7 @@ function App() {
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState(activeExample ? 'fit' : '4');
   const [analysisRadius, setAnalysisRadius] = useState(2.5);
+  const [analysisRequest, setAnalysisRequest] = useState(0);
   const [tab, setTab] = useState('image');
   const [contrast, setContrast] = useState('shared');
   const [reviewContrast, setReviewContrast] = useState('auto');
@@ -195,11 +196,17 @@ function App() {
     const [first, ...remaining] = track.detections;
     resetBlink();
     setReviewId(track.id);
+    setAnalysisRequest(0);
     setReviewContrast('auto');
     setSelectedId(first.frameId);
     setAppendedIds(remaining.map((point) => point.frameId));
     setBlinkMode(true);
     setZoom('fit');
+  }
+
+  function openCandidateAnalysis() {
+    setAnalysisRequest((request) => request + 1);
+    window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
   function leaveCandidateReview() {
@@ -402,6 +409,7 @@ function App() {
             {brightnessPoint && <BrightnessFootprint point={brightnessPoint} aligned />}
             {measured && <FrameMarker key={`candidate-${visible.id}`} className="motion-marker" label="Measured candidate position"
               kind="Motion candidate" enabled={downloadComplete} onInspect={() => setPlaying(false)}
+              clickHint="Click to view aperture measurements" onClickAction={openCandidateAnalysis}
               style={{ left: `${100 * measured.x / visibleGrid.width}%`, top: `${100 * measured.y / visibleGrid.height}%` }}>
               <span>Candidate</span>
             </FrameMarker>}
@@ -481,7 +489,7 @@ function App() {
           <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
           <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
         </section>}
-        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} />}
+        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} />}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MotionCandidate, MotionPhotometryResult } from './api/frames';
 import { fetchMotionPhotometry, RequestError } from './api/frames';
 
@@ -54,16 +54,17 @@ function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
   </svg>;
 }
 
-export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange }: {
-  sequenceId: string; candidate: MotionCandidate; radius: number; onRadiusChange: (radius: number) => void;
+export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange, autoMeasureRequest = 0 }: {
+  sequenceId: string; candidate: MotionCandidate; radius: number; onRadiusChange: (radius: number) => void; autoMeasureRequest?: number;
 }) {
   const [result, setResult] = useState<MotionPhotometryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);
+  const lastAutoMeasureRequest = useRef(0);
   useEffect(() => () => controller.current?.abort(), []);
 
-  async function measure() {
+  const measure = useCallback(async () => {
     controller.current?.abort();
     const active = new AbortController();
     controller.current = active;
@@ -75,7 +76,13 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
     } finally {
       if (!active.signal.aborted) setLoading(false);
     }
-  }
+  }, [sequenceId, candidate, radius]);
+
+  useEffect(() => {
+    if (autoMeasureRequest <= 0 || autoMeasureRequest === lastAutoMeasureRequest.current) return;
+    lastAutoMeasureRequest.current = autoMeasureRequest;
+    void measure();
+  }, [autoMeasureRequest, measure]);
 
   function download() {
     if (!result) return;
@@ -87,7 +94,7 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return <section className="motion-analysis" aria-label="Moving candidate measurements">
+  return <section id="moving-candidate-analysis" className="motion-analysis" aria-label="Moving candidate measurements">
     <h4>Analyze moving candidate</h4>
     <p className="hint">Measure the marked position in each supporting native frame. These are quick-look exposure measurements, not the stationary 102-channel mosaic spectrum.</p>
     <div className="motion-analysis-controls">
@@ -100,7 +107,7 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
         {loading ? 'Measuring…' : result ? 'Measure again' : 'Measure candidate'}
       </button>
     </div>
-    {loading && <p role="status">Measuring retained FITS positions…</p>}
+    {loading && <p role="status">Loading native science when needed and measuring candidate positions…</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {result && <>
       <p role="status">{result.measurements.filter(row => row.status !== 'unavailable').length} of {result.measurements.length} positions measured · {result.method}.</p>

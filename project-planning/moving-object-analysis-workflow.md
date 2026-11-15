@@ -25,6 +25,8 @@ The stationary mosaic result must not be described as a spectrum of a moving obj
 - Candidate review opens the supporting frames in Aligned Blink and draws a violet circle at each measured position.
 - Track summaries show detector, detection count, displacement, and elapsed time.
 - Verify includes a per-candidate quick-look measurement panel below the blink image and comparison table. It measures each recorded candidate position in its supporting native FITS frame and shows aperture flux versus time, sparse flux-versus-wavelength samples, a quality table, and CSV export.
+- In Verify, clicking the violet measured-position marker scrolls to that panel and starts the measurement; hovering keeps the compact marker hint.
+- If a supporting science cutout is no longer retained in memory or the saved search cache, measurement reloads that exposure from the archive on demand.
 - The stationary-region spectrum selects a native-image sky position and measures a separate, combined-epoch 102-channel HiPS mosaic.
 - The moving-candidate measurement is linked to backend-generated candidate IDs and positions. Arbitrary image-click photometry, target-centered stacking, known-object cross-match, and PSF-matched moving-source photometry are not implemented.
 

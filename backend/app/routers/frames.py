@@ -103,14 +103,13 @@ def motion_photometry(sequence_id: str, query: MotionPhotometryQuery, request: R
                "detector": exposure.detector, "release": exposure.release,
                "sourceFitsUrl": exposure.url, "ra": point["ra"], "dec": point["dec"],
                "detectionSnr": point["signalToNoise"]}
-        cutout = job.science_cutout(point["frameId"])
-        if cutout is None:
-            rows.append({**row, "status": "unavailable", "reason": "Native science FITS is not retained for this frame."})
-            continue
         try:
+            cutout = request.app.state.frames.science_for_analysis(job, exposure)
             rows.append({**row, **measure_position(cutout, point["ra"], point["dec"], query.radiusPixels)})
         except (OSError, KeyError, TypeError, ValueError, WcsError) as exc:
             rows.append({**row, "status": "unavailable", "reason": str(exc)})
+        except Exception:
+            rows.append({**row, "status": "unavailable", "reason": "Native science could not be reloaded from the archive for this frame."})
     response.headers["Cache-Control"] = "no-store"
     return {"candidateId": candidate["id"], "unit": "mJy", "processingVersion": "moving-aperture-quicklook-v1",
             "method": "native circular aperture with local clipped-median background",
