@@ -93,6 +93,7 @@
 <p>For AI detection or quantitative measurements, use calibrated FITS brightness arrays, variance, masks, and WCS. Compare registered arrays on a common grid for pixel-level detection, or detect on the native arrays and link detections in RA and Dec. Future UI work discussed includes an interactive FITS-backed brightness stretch, candidate displacement in arcseconds, and a difference overlay after verifying registration and matching stellar profiles. <a href="../project-planning/image-processing/m101-ui/manifest.json">M101 FITS fixture manifest</a></p>
 </section>
 <footer>Project documentation for Sifting Skies.</footer>
+<p>The aligned preview and Gaia overlay use distinct React keys for each frame. Reusing a frame ID as the sibling key for both components left stale image elements in the viewer during frame switches. This stacked images vertically and stretched overlay coordinates, including the Vesta marker, across the enlarged container. Prepared demos exposed the problem quickly because cached Gaia data was immediately available. Blink switching must retain exactly one preview image and a square image container; cached and archive-backed frames use the same rendering rules.</p>
 </main>
 <p>Opening an Auto observation candidate keeps the shared sky grid and starts with per-frame contrast. Candidate review also offers locked detector contrast for brightness comparisons. See <a href="automatic-motion-search.html">Auto observation</a>.</p>
 </body>

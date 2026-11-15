@@ -431,12 +431,12 @@ function App() {
               move(index + (event.key === 'ArrowRight' ? 1 : -1));
             }
           }}>
-          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} onReload={reloadAnalysisField} loading={sequence.busy} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
-            <AlignedPreview key={alignedAutoUrl(visible) ?? visible.id} autoUrl={alignedAutoUrl(visible)}
+            <AlignedPreview key={`preview:${alignedAutoUrl(visible) ?? visible.id}`} autoUrl={alignedAutoUrl(visible)}
               lockedUrl={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`}
               showFallback={!!autoContrastSequence} />
-            {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers key={visible.id} catalogue={gaia.catalogue}
+            {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers key={`gaia:${visible.id}`} catalogue={gaia.catalogue}
               query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
               side={visibleGrid.width} showLabels={gaiaLabels} showDetails={downloadComplete} onInspect={() => setPlaying(false)} />}
             {brightnessPoint && <BrightnessFootprint point={brightnessPoint} aligned />}
