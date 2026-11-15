@@ -696,7 +696,7 @@ footer{
 
 .home-hero {
   position: relative;
-  min-height: clamp(350px, 48vw, 565px);
+  min-height: clamp(300px, 34vw, 440px);
   display: grid;
   align-items: center;
   background-color: #070a12;
@@ -760,31 +760,57 @@ footer{
   text-decoration: none;
 }
 
-.home-path:hover, .home-path:focus-visible {
-  border-color: #a5e7d2;
-  background: #152333;
-}
-
 .home-path h2 {
-  font-size: clamp(22px, 3vw, 38px);
+  font-size: clamp(23px, 3vw, 36px);
   line-height: 1.05;
   letter-spacing: -.04em;
 }
 
-.home-path p {
-  color: #b6c1d1;
-  max-width: 330px;
+.home-examples {
+  list-style: none;
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 0;
 }
 
-.home-action {
-  margin-top: auto;
-  padding-top: 12px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #a5e7d2;
+.home-examples li + li { border-top: 1px solid #293647; }
+
+.home-examples button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 10px 0;
+  text-align: left;
 }
 
-.home-action span { margin-left: 8px; }
+.home-examples button:hover { background: #152333; }
+.home-examples strong, .home-examples small { display: block; }
+.home-examples small { color: #aeb9c8; margin-top: 2px; }
+.home-examples button > span:last-child { color: #a5e7d2; padding-right: 8px; }
+
+.home-observation-form {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.home-field-units { color: #b6c1d1; margin-bottom: 2px; font-size: 13px; }
+.home-observation-form label { font-size: 13px; }
+.home-observation-form label span { color: #aeb9c8; font-size: 10px; padding-left: 4px; }
+
+.home-observation-form input {
+  width: 100%;
+  background: #0b111d;
+  border: 1px solid #324256;
+  color: inherit;
+  padding: 8px 10px;
+}
+
+.home-observation-form .primary { margin-top: 3px; }
 
 .workspace-nav {
   display: flex;
@@ -882,3 +908,97 @@ footer{
 .auto-observation .primary { width: auto; margin-top: 10px; }
 .auto-observation progress { width: 100%; margin-top: 8px; }
 .auto-observation .moving-candidates { margin: 12px 0 0; }
+
+.workspace.frame-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.frame-workspace .spectrum-panel { grid-column: auto; }
+
+.frame-workspace .image-stage {
+  height: clamp(350px, 62vh, 720px);
+}
+
+.frames-timeline {
+  margin-bottom: 16px;
+}
+
+.frames-timeline h2,
+.frame-metadata h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.frames-timeline .filmstrip { padding: 10px 0 4px; }
+.frames-timeline .filmstrip button { flex: 0 0 68px; }
+.frames-timeline .filmstrip img { width: 54px; height: 48px; }
+.frames-timeline .filmstrip span { margin-top: 4px; }
+.frames-timeline .navigation { padding: 10px 0 0; }
+.frames-timeline .progress-block { margin-top: 10px; padding-top: 10px; }
+
+.frame-metadata { padding: 16px 0 10px; }
+.frame-metadata h2 { margin-bottom: 10px; }
+.frame-metadata .metadata { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+.frame-metadata .blink-table caption { text-align: left; }
+.frame-settings > summary,
+.observation-settings > summary,
+.auto-observation > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.frame-settings { border-top: 1px solid #293647; padding-top: 12px; }
+.frame-settings > summary { margin-bottom: 12px; }
+.observation-settings > summary { margin-bottom: 10px; }
+
+.frame-marker-trigger {
+  padding: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.gaia-hover-marker {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 1.4px solid #75f4d0;
+  border-radius: 50%;
+}
+
+.marker-details {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  background: #111b2b;
+  color: #e9f0fc;
+  border: 1px solid #465b72;
+  border-radius: 9px;
+  box-shadow: 0 8px 24px #0008;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.marker-details strong { overflow-wrap: anywhere; }
+.marker-details small { display: block; color: #aebdd0; margin-top: 4px; }
+.marker-details dl { margin: 8px 0 0; }
+.marker-details dl div { display: flex; justify-content: space-between; gap: 8px; }
+.marker-details dd { margin: 0; }
+
+@media (max-width: 620px) {
+  .frame-workspace .image-stage { height: clamp(290px, 55vh, 540px); }
+}
+
+.workflow-shell .workflow-intro { padding: 20px 0; }
+.workflow-shell .workflow-intro h1 { font-size: clamp(26px, 4vw, 42px); }
+.workflow-shell .workflow-intro > p { font-size: 13px; }
+
+
+.aligned-contrast-notice {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 0.4rem;
+  color: white;
+  background: #121822;
+  text-align: center;
+  font-size: 0.75rem;
+  pointer-events: none;
+}

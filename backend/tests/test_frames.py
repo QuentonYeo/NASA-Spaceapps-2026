@@ -347,8 +347,8 @@ def test_search_checkpoint_restores_previews_and_resumes_next_batch(tmp_path):
     service = FramesService(Archive([]), Cutouts(), FitsRenderer(), restored_jobs, batch_size=1)
     try:
         restored = service.poll(sequence_id, 0)
-        assert restored == {**original, "frames": [{**frame, "scienceStatus": "unavailable"} for frame in original["frames"]]}
-        assert not restored_jobs.get(sequence_id).science
+        assert restored == original
+        assert restored_jobs.get(sequence_id).science_cutout("one") == cutout()
         service.next_batch(sequence_id, 1)
         assert completed(service, sequence_id)["status"] == "completed"
         assert [frame["id"] for frame in service.poll(sequence_id, 0)["frames"]] == ["one", "two"]

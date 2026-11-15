@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { GaiaCatalogue, SkyQuery } from './api/frames';
+import { FrameMarker } from './components/FrameMarker';
 import { projectGaia } from './state/gaiaProjection';
 
 interface OverlayProps {
@@ -9,9 +10,11 @@ interface OverlayProps {
   image: string;
   side: number;
   showLabels: boolean;
+  showDetails: boolean;
+  onInspect: () => void;
 }
 
-export function GaiaMarkers({ catalogue, query, observedAt, image, side, showLabels }: OverlayProps) {
+export function GaiaMarkers({ catalogue, query, observedAt, image, side, showLabels, showDetails, onInspect }: OverlayProps) {
   const [mask, setMask] = useState<{ image: string; bytes: Uint8ClampedArray }>();
   useEffect(() => {
     const preview = new Image();
@@ -38,11 +41,14 @@ export function GaiaMarkers({ catalogue, query, observedAt, image, side, showLab
   });
 
   return <>
-    <svg className="gaia-markers" viewBox={`0 0 ${side} ${side}`} aria-label="Gaia DR3 catalogue positions" role="img">
-      {markers.map(({ x, y, id, title }) => <circle key={id} cx={x} cy={y} r={Math.max(1, side * 0.012)}>
-        <title>{title}</title>
-      </circle>)}
-    </svg>
+    {showDetails ? markers.map(({ x, y, id, label }) => <FrameMarker key={id}
+      label={`Gaia ${label}`} kind="Reference star" enabled onInspect={onInspect} className="gaia-hover-marker"
+      style={{ left: `${100 * x / side}%`, top: `${100 * y / side}%` }} />)
+      : <svg className="gaia-markers" viewBox={`0 0 ${side} ${side}`} aria-label="Gaia DR3 catalogue positions" role="img">
+        {markers.map(({ x, y, id, title }) => <circle key={id} cx={x} cy={y} r={Math.max(1, side * 0.012)}>
+          <title>{title}</title>
+        </circle>)}
+      </svg>}
     {showLabels && <div className="gaia-labels">
       {markers.map(({ x, y, id, label, title }) => <span key={id} title={title}
         className={x > side * 0.75 ? 'gaia-label gaia-label-left' : 'gaia-label'}

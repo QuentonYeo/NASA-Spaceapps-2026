@@ -1,4 +1,4 @@
-"""Disk checkpoints for replaying completed image batches after a restart."""
+"""Disk checkpoints for previews and retained native FITS cutouts."""
 import gzip
 import json
 import logging
@@ -15,19 +15,27 @@ logger = logging.getLogger(__name__)
 
 
 class SearchCache:
-    def __init__(self, path: Path, max_bytes: int, ttl: int):
+    def __init__(self, path: Path, max_bytes: int, ttl: int, *, science_max_bytes: int = 1024 ** 3):
         self.path, self.max_bytes, self.ttl = path, max_bytes, ttl
+        self.science_max_bytes = science_max_bytes
         self.lock = Lock()
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock, self.connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
                 id TEXT PRIMARY KEY, saved REAL NOT NULL, payload BLOB NOT NULL
             )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS checkpoint_science (
+                sequence_id TEXT NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
+                frame_id TEXT NOT NULL, payload BLOB NOT NULL,
+                PRIMARY KEY (sequence_id, frame_id)
+            )""")
             self.prune(db, time.time())
 
     def connect(self):
         # The caller closes each connection after its transaction.
-        return closing(sqlite3.connect(self.path))
+        connection = sqlite3.connect(self.path)
+        connection.execute("PRAGMA foreign_keys = ON")
+        return closing(connection)
 
     def prune(self, db, now):
         db.execute("DELETE FROM checkpoints WHERE saved < ?", (now - self.ttl,))
@@ -38,6 +46,18 @@ class SearchCache:
             ).fetchone()
             db.execute("DELETE FROM checkpoints WHERE id = ?", (oldest,))
             size -= length
+
+        science = db.execute("""
+            SELECT sequence_id, sum(length(checkpoint_science.payload))
+            FROM checkpoint_science JOIN checkpoints ON checkpoints.id = sequence_id
+            GROUP BY sequence_id ORDER BY checkpoints.saved, sequence_id
+        """).fetchall()
+        science_size = sum(length for _, length in science)
+        for sequence_id, length in science:
+            if science_size <= self.science_max_bytes:
+                break
+            db.execute("DELETE FROM checkpoint_science WHERE sequence_id = ?", (sequence_id,))
+            science_size -= length
         db.commit()
 
     def save(self, job):
@@ -53,7 +73,18 @@ class SearchCache:
                 return
             with self.lock, self.connect() as db:
                 now = time.time()
-                db.execute("INSERT OR REPLACE INTO checkpoints VALUES (?, ?, ?)", (job.id, now, payload))
+                db.execute("""
+                    INSERT INTO checkpoints VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET saved = excluded.saved, payload = excluded.payload
+                """, (job.id, now, payload))
+                if 0 < job.science_bytes <= self.science_max_bytes:
+                    saved = {row[0] for row in db.execute(
+                        "SELECT frame_id FROM checkpoint_science WHERE sequence_id = ?", (job.id,),
+                    )}
+                    db.executemany("INSERT INTO checkpoint_science VALUES (?, ?, ?)", (
+                        (job.id, frame_id, data) for frame_id, data in job.science.items()
+                        if frame_id not in saved
+                    ))
                 self.prune(db, now)
         except (OSError, sqlite3.Error, ValueError, TypeError):
             logger.warning("Could not save search checkpoint", exc_info=True)
@@ -63,14 +94,22 @@ class SearchCache:
             with self.lock, self.connect() as db:
                 row = db.execute("SELECT payload FROM checkpoints WHERE id = ? AND saved >= ?",
                                  (sequence_id, time.time() - self.ttl)).fetchone()
-            if row is None:
-                return None
+                if row is None:
+                    return None
+                science = dict(db.execute("""
+                    SELECT frame_id, payload FROM checkpoint_science WHERE sequence_id = ?
+                """, (sequence_id,)))
             data = json.loads(gzip.decompress(row[0]))
             from app.services.jobs import Job
             return Job(
                 sequence_id, Region(**data["region"]), finished=time.monotonic(),
                 status=data["status"], total=data["total"],
-                results=[{**frame, "scienceStatus": "unavailable"} for frame in data["results"]],
+                results=[{
+                    **frame,
+                    "scienceStatus": "retained" if frame["id"] in science else
+                    "retention_limit" if frame.get("scienceStatus") == "retention_limit" else "unavailable",
+                } for frame in data["results"]],
+                science=science, science_bytes=sum(map(len, science.values())),
                 scheduled=data["scheduled"], motion=data.get("motion"), observation=data.get("observation"),
                 exposures=[(Exposure(**exposure), visit) for exposure, visit in data["exposures"]],
                 display_limits={(release, detector, unit): (low, high)

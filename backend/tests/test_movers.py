@@ -108,6 +108,9 @@ def test_auto_observation_links_all_downloaded_batches_without_refetching(tmp_pa
             for offset in (1, 2):
                 assert client.post(url + "/batches", json={"after": offset}).status_code == 202
                 wait_for(url, "awaiting_more" if offset == 1 else "completed")
+            restored = cache.load(sequence_id)
+            assert restored is not None and len(restored.science) == 3
+            jobs.items[sequence_id] = restored
             assert client.get(analysis_url).json()["status"] == "idle"
             assert client.post(analysis_url).status_code == 202
             result = wait_for(analysis_url, "completed")

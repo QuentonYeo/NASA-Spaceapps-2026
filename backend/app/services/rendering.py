@@ -217,13 +217,27 @@ class FitsRenderer:
                 "grid": {"width": pixels.data.shape[1], "height": pixels.data.shape[0],
                          "orientation": "native"}}
 
+    def aligned_auto_png(self, cutout: bytes, region: Region) -> bytes | None:
+        """Render the native per-frame stretch on the north-up query grid."""
+        pixels = self.prepare(cutout, region)
+        aligned = align_to_query(pixels)
+        if aligned is None:
+            return None
+        return self._png(aligned, pixels.limits)
+
     @staticmethod
     def _encode(pixels: PreviewPixels, limits: tuple[float, float], scope: str) -> tuple[str, dict]:
+        low, high = limits
+        png = FitsRenderer._png(pixels, limits)
+        return ("data:image/png;base64," + base64.b64encode(png).decode(),
+                {"stretch": "asinh", "vmin": low, "vmax": high, "scope": scope, "aligned": False})
+
+    @staticmethod
+    def _png(pixels: PreviewPixels, limits: tuple[float, float]) -> bytes:
         low, high = limits
         normalized = np.clip((np.where(pixels.valid, pixels.data, low) - low) / max(high - low, 1e-12), 0, 1)
         gray = (np.arcsinh(10 * normalized) / np.arcsinh(10) * 255).astype(np.uint8)
         rgba = np.stack([gray, gray, gray, pixels.valid.astype(np.uint8) * 255], axis=-1)
         output = io.BytesIO()
         Image.fromarray(rgba).save(output, format="PNG")
-        return ("data:image/png;base64," + base64.b64encode(output.getvalue()).decode(),
-                {"stretch": "asinh", "vmin": low, "vmax": high, "scope": scope, "aligned": False})
+        return output.getvalue()

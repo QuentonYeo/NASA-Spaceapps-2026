@@ -19,6 +19,7 @@
 <section id="workflow">
 <p>Spectrum selection retains the original native science FITS before display reprojection. Native <code>imageData/grid</code> and aligned <code>alignedImageData/alignedGrid</code> are separate; spectrum extraction and aperture overlays use native IMAGE WCS. Use a native spectral image for those interactions or hide native overlays in aligned mode. <a href="spectral-explorer.html">102-channel spectrum</a></p>
 <h2>Using the viewer</h2>
+<p>The timeline sits above the frame, with metadata below it. After loading completes, hover or focus a known-object, measured-candidate, or Gaia marker for a floating card. Inspecting a marker pauses playback. The cards display sample details while this interaction is being validated.</p>
 <p>Choose an <a href="automatic-motion-search.html">automatic motion candidate</a> in Explore to open its supporting frames and review the measured positions in Aligned Blink.</p>
 <p>Open <strong>Validate a known object</strong> from Home to load a prepared comparison in Aligned Blink. For a custom search, choose <strong>Explore for movement</strong> and select <strong>Aligned blink</strong> in the viewer. <a href="viewer-workflows.html">Viewer workflows</a></p>
 <p>Turn on <strong>Gaia reference stars</strong> to mark expected catalogue positions on the aligned frames. <a href="gaia-reference-stars.html">Gaia reference stars</a></p>
@@ -90,5 +91,6 @@
 </section>
 <footer>Project documentation for SPHEREx Sky Blink.</footer>
 </main>
+<p>Opening an Auto observation candidate keeps the shared sky grid and starts with per-frame contrast. Candidate review also offers locked detector contrast for brightness comparisons. See <a href="automatic-motion-search.html">Auto observation</a>.</p>
 </body>
 </html>

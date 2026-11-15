@@ -8,7 +8,7 @@ uv run uvicorn app.main:app --reload
 ```
 
 Open http://localhost:8000/docs to submit and inspect requests.
-Use one Uvicorn worker: jobs and previews are process-local and are lost on restart.
+Use one Uvicorn worker. Active workers are process-local, and completed download batches can be restored from disk.
 Reloading source also restarts the process. In-memory jobs expire after 30 minutes. Completed batches can be replayed from disk.
 
 ## Frames workflow
@@ -23,7 +23,7 @@ Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up
 `POST /api/frames/{sequenceId}/auto-observation` to start full-sequence motion
 analysis. Poll that path with GET for progress and ranked candidates. The analysis
 uses retained FITS data without downloading again. Native FITS retention is
-losslessly compressed, bounded by the science storage budget and process-local.
+losslessly compressed and bounded by the per-search and disk science budgets.
 The legacy opt-in `findMovers: true` still analyzes individual download batches.
 Returns HTTP 202 with `sequenceId`, `pollUrl`, and `pollAfterSeconds`.
 Poll `GET {pollUrl}?after=0`, then use each response's `nextCursor` as `after`.
@@ -80,6 +80,8 @@ Environment variables read at app startup:
 | `SEARCH_CACHE_BYTES` | `268435456` | Compressed preview checkpoint budget (0 disables it) |
 | `SEARCH_CACHE_TTL_SECONDS` | `604800` | Disk checkpoint retention |
 | `SEARCH_CACHE_PATH` | `~/.cache/spherex-sky-blink/searches-v1.sqlite3` | Local checkpoint database |
+| `MAX_SCIENCE_BYTES` | `268435456` | Compressed FITS retention per active search |
+| `SEARCH_SCIENCE_CACHE_BYTES` | `1073741824` | Total disk budget for retained FITS inputs (0 disables FITS persistence) |
 | `CUTOUT_CACHE_BYTES` | `134217728` | In-memory FITS cache budget in bytes (0 disables it) |
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
 | `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new observation group |

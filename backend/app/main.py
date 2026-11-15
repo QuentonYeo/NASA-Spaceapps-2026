@@ -34,6 +34,7 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
             search_cache = SearchCache(
                 Path(os.getenv("SEARCH_CACHE_PATH", str(Path.home() / ".cache" / "spherex-sky-blink" / "searches-v1.sqlite3"))),
                 search_bytes, int(os.getenv("SEARCH_CACHE_TTL_SECONDS", str(7 * 86400))),
+                science_max_bytes=int(os.getenv("SEARCH_SCIENCE_CACHE_BYTES", str(1024 ** 3))),
             ) if search_bytes > 0 else None
             jobs = LocalJobs(max_jobs=int(os.getenv("MAX_JOBS", "8")),
                              ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")), search_cache=search_cache)
@@ -44,7 +45,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                 visit_gap_days=float(os.getenv("VISIT_GAP_DAYS", "10")),
                 cutout_workers=int(os.getenv("CUTOUT_WORKERS", "4")),
                 batch_size=int(os.getenv("FRAME_BATCH_SIZE", "12")),
-                cutout_cache=cache)
+                cutout_cache=cache,
+                max_science_bytes=int(os.getenv("MAX_SCIENCE_BYTES", str(256 * 1024 ** 2))))
         else:
             app.state.frames = service
         try:

@@ -12,7 +12,7 @@ body{max-width:760px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f
 <main>
 <h1>Gaia reference stars</h1>
 <p>In Aligned Blink, enable <strong>Gaia reference stars</strong> to overlay expected Gaia DR3 source positions. A group of visible sources shifting together can indicate a residual alignment error.</p>
-<p>Enable <strong>Show Gaia labels</strong> to display compact labels such as G1 and G2. Labels stay assigned to the same catalogue source as frames blink. Hover over a label or marker for the full Gaia DR3 source ID and optical G magnitude.</p>
+<p>Enable <strong>Show Gaia labels</strong> to display compact labels such as G1 and G2. Labels stay assigned to the same catalogue source as frames blink. Hover over an enabled label for the full Gaia DR3 source ID and optical G magnitude. Once frames finish loading, hover or focus a circle for the floating sample-details card.</p>
 <h2>Catalogue and projection</h2>
 <p>The backend queries the Gaia ESA Archive through TAP on demand using the active search center and a cone radius of field of view divided by √2 plus 0.03°. It keeps up to 150 optically brightest catalogue entries in the retained backend job. The same catalogue serves all frames in the sequence, independently of SPHEREx archive requests.</p>
 <p>The viewer uses Gaia’s reference epoch and available proper-motion components to estimate each source position at the SPHEREx observation time. It projects each position onto the north-up 6.15 arcsec/pixel aligned grid and filters markers outside the image or on transparent pixels. Marker positions follow the preview at each display size.</p>

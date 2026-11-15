@@ -1,6 +1,18 @@
+import type { FormEvent } from 'react';
+import { ObservationFields } from './ObservationFields';
+import type { ObservationInputs } from './ObservationFields';
+import { examples } from './state/validationExamples';
 import galaxy from './assets/m101-hubble.webp';
 
-export function Home() {
+interface Props {
+  inputs: ObservationInputs;
+  setInputs: (inputs: ObservationInputs) => void;
+  validation: string;
+  onObserve: (event: FormEvent<HTMLFormElement>) => void;
+  onValidate: (example: (typeof examples)[number]) => void;
+}
+
+export function Home({ inputs, setInputs, validation, onObserve, onValidate }: Props) {
   return <main className="home">
     <header className="home-header"><a href="#home" className="home-brand">SPHEREx <span>SKY BLINK</span></a><span>Infrared observation viewer</span></header>
     <section className="home-hero" style={{ backgroundImage: `linear-gradient(90deg, #070a12 5%, #070a12eb 29%, #070a1240 72%), url(${galaxy})` }}>
@@ -11,19 +23,27 @@ export function Home() {
       </div>
       <a className="home-credit" href="https://science.nasa.gov/asset/hubble/hubble-image-of-m101/">M101 · Hubble / NASA, ESA and science team</a>
     </section>
-    <nav className="home-paths" aria-label="Choose a workflow">
-      <a href="#validate" className="home-path">
-        <span className="home-kicker">GUIDED COMPARISON</span>
-        <h2>Validate a known object</h2>
-        <p>Watch Vesta move across three exposures, follow Arosa’s path, or check the viewer on a stationary field.</p>
-        <span className="home-action">Choose an example <span aria-hidden="true">↗</span></span>
-      </a>
-      <a href="#explore" className="home-path">
-        <span className="home-kicker">LIVE OBSERVATIONS</span>
-        <h2>Explore for movement</h2>
-        <p>Enter sky coordinates or start with a suggested field. Download the field and run a search for motion.</p>
-        <span className="home-action">Open the explorer <span aria-hidden="true">↗</span></span>
-      </a>
-    </nav>
+    <div className="home-paths">
+      <section className="home-path" aria-labelledby="home-validate">
+        <h2 id="home-validate">Validate a known object</h2>
+        <ul className="home-examples">
+          {examples.map((example) => <li key={example.id}>
+            <button type="button" onClick={() => onValidate(example)}>
+              <span><strong>{example.name}</strong><small>{example.purpose}</small></span>
+              <span aria-hidden="true">↗</span>
+            </button>
+          </li>)}
+        </ul>
+      </section>
+      <section className="home-path" aria-labelledby="home-observation">
+        <h2 id="home-observation">New observation</h2>
+        <form className="home-observation-form" onSubmit={onObserve}>
+          <p className="home-field-units">Enter the view parameters in degrees.</p>
+          <ObservationFields inputs={inputs} setInputs={setInputs} />
+          {validation && <p className="error" role="alert">{validation}</p>}
+          <button className="primary" type="submit">Start <span aria-hidden="true">↗</span></button>
+        </form>
+      </section>
+    </div>
   </main>;
 }

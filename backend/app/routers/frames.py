@@ -61,8 +61,8 @@ def poll_frames(sequence_id: str, response: Response,
                 after: Annotated[int, Query(ge=0)] = 0):
     """Return new preview frames and progress after a completion-log cursor.
 
-    Images are unaligned display previews. Science FITS are retained separately
-    within the process-local sequence lifetime and bounded storage budget.
+    Images are unaligned display previews. Science FITS are retained separately within the sequence and
+    checkpointed to disk subject to the configured storage budgets.
     """
     response.headers["Cache-Control"] = "no-store"
     return service.poll(sequence_id, after)
@@ -104,6 +104,22 @@ def next_batch(sequence_id: str, query: BatchQuery, response: Response,
     response.headers["Cache-Control"] = "no-store"
     return service.next_batch(sequence_id, query.after)
 
+
+
+@router.get("/{sequence_id}/frames/{frame_id:path}/aligned-auto.png", response_class=Response)
+def aligned_auto_preview(sequence_id: str, frame_id: str, request: Request):
+    """Render a per-frame preview using the saved science and existing alignment."""
+    from app.domain.errors import AppError
+
+    service = request.app.state.frames
+    job = service.jobs.get(sequence_id)
+    cutout = job.science_cutout(frame_id)
+    if cutout is None:
+        raise AppError("SCIENCE_UNAVAILABLE", "Science cutout unavailable.", 409)
+    image = service.renderer.aligned_auto_png(cutout, job.region)
+    if image is None:
+        raise AppError("ALIGNMENT_UNAVAILABLE", "Aligned preview unavailable.", 409)
+    return Response(image, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/{sequence_id}/frames/{frame_id:path}/coordinate")
