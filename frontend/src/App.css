@@ -1098,3 +1098,28 @@ footer{
   .motion-analysis-controls label, .motion-analysis-controls input, .motion-analysis-controls .primary { width: 100%; }
   .suggested-field-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.motion-analysis-overview { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, 1fr); align-items: start; gap: 20px; margin: 20px 0; }
+.motion-analysis-graph { min-width: 0; padding: 16px 0; }
+.motion-analysis .motion-analysis-graph .motion-flux-plot { display: block; max-width: none; }
+.measurement-summary { min-width: 0; padding: 20px; border: 1px solid var(--border-subtle); border-radius: var(--radius-card); background: var(--surface-raised); }
+.measurement-summary h5 { margin: 0 0 16px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.measurement-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.measurement-metrics dt { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.measurement-metrics dd { margin: 4px 0 0; color: var(--text-primary); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.measurement-metrics dd span { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.measurement-metric-wide { grid-column: 1 / -1; }
+.measurement-fit-heading { display: flex; justify-content: space-between; gap: 12px; margin: 16px 0; padding-top: 16px; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.measurement-fit-heading span { color: var(--text-muted); font-weight: 400; }
+.measurement-comparisons { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.measurement-comparisons h6 { margin: 0; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.measurement-comparison-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.measurement-comparison-table caption { text-align: left; color: var(--text-muted); padding: 8px 0; font-size: 11px; }
+.measurement-comparison-table th, .measurement-comparison-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-subtle); }
+.measurement-comparison-table th { color: var(--text-secondary); font-weight: 600; }
+.measurement-comparison-table td { color: var(--text-primary); }
+.measurement-comparison-table td span { display: block; color: var(--text-muted); font-size: 11px; }
+@media (max-width: 900px) {
+  .motion-analysis-overview { grid-template-columns: minmax(0, 1fr); }
+  .measurement-summary { padding: 16px; }
+}
