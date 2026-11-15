@@ -85,7 +85,7 @@ export function useFrames() {
       if (newSearch) {
         const accepted = preloadedId
           ? { sequenceId: preloadedId, pollUrl: `/api/frames/${preloadedId}` }
-          : await startSequence({ ...newSearch, requestGroup }, current.signal);
+          : await startSequence({ ...newSearch, requestGroup, refresh: restart }, current.signal);
         if (current.signal.aborted) return;
         session.current = { ...accepted, query: newSearch, paused: false };
         setResumable(true);

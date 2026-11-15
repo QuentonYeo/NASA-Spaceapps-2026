@@ -369,6 +369,8 @@ function App() {
           <progress aria-label="Frames processed" max={progress?.total || 1} value={finished} />
           <div className="stats"><span><b>{progress?.ready ?? 0}</b> ready</span><span><b>{progress?.failed ?? 0}</b> failed</span><span><b>{progress?.total ?? 0}</b> total</span></div>
           {sequence.notice && <p className="hint">{sequence.notice}</p>}
+          {sequence.page?.dataSource === 'demo_cache' && <p className="hint">Prepared demo cache - observations loaded from local disk.</p>}
+          {mode === 'explore' && sequence.page?.inventoryScope === 'known_object' && <p className="hint">Showing the saved known-object exposures for this exact field. Additional archive observations may exist. <button className="text-button" onClick={reloadAnalysisField}>Search full archive field</button></p>}
           {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
           {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
           {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>Resume loading</button>}

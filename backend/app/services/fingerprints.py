@@ -131,11 +131,19 @@ class CubeCache:
     def __init__(self, directory=None, budget=1024**3, client=None):
         self.directory = Path(directory or os.getenv("SPHEREX_CUBE_CACHE", Path(__file__).resolve().parents[2] / ".cache" / "spherex-cubes"))
         self.budget, self.lock = budget, RLock()
+        self._restore_bundle = directory is None
+        self._bundle_checked = False
         self.client = client or httpx.Client(limits=httpx.Limits(max_connections=12), follow_redirects=False)
 
     def close(self): self.client.close()
 
     def get(self, tile, progress):
+        with self.lock:
+            if self._restore_bundle and not self._bundle_checked:
+                from app.services.bundled_spectrum import restore
+                progress("Loading bundled spectrum cache", 0, None)
+                restore(self.directory)
+                self._bundle_checked = True
         path = self.directory / f"{RELEASE}-Npix{tile}.fits"
         url = f"{BASE_URL}/Dir{tile//10000*10000}/Npix{tile}_cube.fits"
         if path.exists(): return path, url, True

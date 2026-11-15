@@ -18,13 +18,14 @@ logger = logging.getLogger(__name__)
 
 class FramesService:
     def __init__(self, archive: Archive, cutouts: Cutouts, renderer: Renderer,
-                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12, cutout_cache: CutoutCache | None = None, max_science_bytes=128 * 1024 * 1024):
+                 jobs: LocalJobs, *, max_frames=300, visit_gap_days=10, cutout_workers=4, batch_size=12, cutout_cache: CutoutCache | None = None, max_science_bytes=128 * 1024 * 1024, demo_store=None):
         self.archive, self.cutouts, self.renderer, self.jobs = archive, cutouts, renderer, jobs
         self.max_frames, self.visit_gap_days = max_frames, visit_gap_days
         self.cutout_workers = cutout_workers
         self.batch_size = batch_size
         self.cutout_cache = cutout_cache
         self.max_science_bytes = max_science_bytes
+        self.demo_store = demo_store
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
@@ -42,6 +43,12 @@ class FramesService:
                             (previous.status in {"queued", "discovering", "running", "awaiting_more"}
                              or previous.automatic_measurements_running)):
                         self.jobs.cancel(previous)
+            if self.demo_store is not None and not refresh:
+                demo = self.demo_store.replay(region, exposure_ids, detector, find_movers)
+                if demo is not None:
+                    demo.request_group = request_group
+                    self.jobs.add(demo)
+                    return self._accepted(demo)
             job = Job(str(uuid4()), region, requested_exposure_ids=exposure_ids, request_key=key, request_group=request_group)
             if find_movers:
                 job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
@@ -393,6 +400,8 @@ class FramesService:
             batch = job.results[after:after + 10]
             ready = sum(r["status"] == "ready" for r in job.results)
             return {"sequenceId": job.id, "centerRaDeg": job.region.ra,
+                    "dataSource": job.data_source,
+                    "inventoryScope": job.inventory_scope,
                     "centerDecDeg": job.region.dec, "fovDeg": job.region.fov, "grid": None,
                     "status": job.status, "nextCursor": after + len(batch),
                     "hasMore": after + len(batch) < len(job.results), "pollAfterSeconds": 1,

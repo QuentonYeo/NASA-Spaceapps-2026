@@ -177,3 +177,5 @@ npm install --save-dev <test-package>
 
 See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md)
 for API details, configuration and browser-testing notes.
+
+Additional cached data: [spectrum cube/range cache](demo/spectrum-cache/README.md) and [additional observations](demo/additional-observations/README.md). The backend uses the immutable FITS snapshots directly and restores the packaged spectrum cache into a writable directory on first spectrum use. Missing spectrum tiles/ranges still require IRSA.

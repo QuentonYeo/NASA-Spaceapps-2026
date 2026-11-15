@@ -13,6 +13,7 @@ from app.services.irsa.s3_cutouts import S3Cutouts
 from app.services.jobs import LocalJobs
 from app.services.rendering import FitsRenderer
 from app.services.search_cache import SearchCache
+from app.services.demos import DemoCutouts, DemoStore
 from app.services.fingerprints import Fingerprints
 
 
@@ -29,6 +30,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
             workers = int(os.getenv("CUTOUT_WORKERS", "4"))
             cutouts = (S3Cutouts(connections=2 * workers) if provider == "s3"
                        else IrsaCutouts(connections=2 * workers))
+            demo_store = DemoStore()
+            cutouts = DemoCutouts(cutouts, demo_store)
             cache = CutoutCache(int(os.getenv("CUTOUT_CACHE_BYTES", str(128 * 1024 * 1024))))
             search_bytes = int(os.getenv("SEARCH_CACHE_BYTES", str(256 * 1024 * 1024)))
             cache_root = Path.home() / ".cache"
@@ -51,7 +54,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                 cutout_workers=int(os.getenv("CUTOUT_WORKERS", "4")),
                 batch_size=int(os.getenv("FRAME_BATCH_SIZE", "12")),
                 cutout_cache=cache,
-                max_science_bytes=int(os.getenv("MAX_SCIENCE_BYTES", str(256 * 1024 ** 2))))
+                max_science_bytes=int(os.getenv("MAX_SCIENCE_BYTES", str(256 * 1024 ** 2))),
+                demo_store=demo_store)
         else:
             app.state.frames = service
         try:

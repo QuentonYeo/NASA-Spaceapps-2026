@@ -88,6 +88,8 @@ python -m scripts.validate_tutorial_photometry path/to/Npix445_cube.fits</code><
 </section>
 <footer>Sifting Skies documentation. <a href="viewer-workflows.html">Viewer workflows</a> &middot; <a href="aligned-blink.html">Aligned Blink</a></footer>
 <p>Switching from Verify to native stationary-region selection preserves the selected candidate and its measurement panel. The moving-candidate link restores its supporting blink frames. Explicitly choosing Return to observations exits candidate review.</p>
+<p>All eight tracked Known Objects datasets include native FITS coordinates for selection when their exact field is opened in Explore. Loading a saved known-object field does not require an IRSA download to recover those coordinates. Mosaic cube data remains a separate cache and may still need a network fetch.</p>
+<p>A tracked spectrum-cache snapshot includes one complete DR1 HiPS FITS cube and previously cached byte ranges. On first use the application verifies and restores the split archive into its writable cube cache; later requests reuse that data. This is not an all-sky offline spectrum: missing tiles or ranges still use the archive. Checksums protect both archive parts and restored files.</p>
 </main>
 </body>
 </html>
