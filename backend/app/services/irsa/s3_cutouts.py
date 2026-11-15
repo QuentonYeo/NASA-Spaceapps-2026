@@ -1,4 +1,4 @@
-"""Anonymous S3 range reads; returns a small IMAGE-only FITS for preview rendering."""
+"""Anonymous S3 range reads; preserves science planes and spectral lookup tables on the native grid."""
 import io
 import math
 import httpx
@@ -38,7 +38,6 @@ class S3Cutouts:
             with self.fs.open(key, "rb") as remote:
                 with fits.open(remote, memmap=False, lazy_load_hdus=True) as hdus:
                     hdu = hdus["IMAGE"]
-                    image_header = hdu.header
                     wcs = WCS(hdu.header).celestial
                     x, y = wcs.world_to_pixel_values(region.ra, region.dec)
                     if not np.isfinite([x, y]).all():
@@ -54,12 +53,27 @@ class S3Cutouts:
                     if x1 <= x0 or y1 <= y0:
                         raise ValueError("No coverage at requested center")
                     # .section performs range reads, unlike .data which loads the entire image.
-                    data = np.array(hdu.section[y0:y1, x0:x1], copy=True)
-                    header = wcs.slice((slice(y0, y1), slice(x0, x1))).to_header(relax=True)
-                    if "BUNIT" in image_header:
-                        header["BUNIT"] = image_header["BUNIT"]
+                    output_hdus = [fits.PrimaryHDU(header=hdus[0].header.copy())]
+                    for name in ("IMAGE", "FLAGS", "VARIANCE", "ZODI"):
+                        if name not in hdus:
+                            continue
+                        plane = hdus[name]
+                        if plane.shape != hdu.shape:
+                            raise ValueError("Science plane shape mismatch")
+                        data = np.array(plane.section[y0:y1, x0:x1], copy=True)
+                        header = plane.header.copy()
+                        # Shift every primary/alternate reference pixel, including WCS W.
+                        # Keep detector lookup tables unchanged: CRPIX accounts for crop.
+                        for keyword in list(header):
+                            if keyword.startswith("CRPIX1"):
+                                header[keyword] -= x0
+                            elif keyword.startswith("CRPIX2"):
+                                header[keyword] -= y0
+                        output_hdus.append(fits.ImageHDU(data, header, name=name))
+                    if "WCS-WAVE" in hdus:
+                        output_hdus.append(hdus["WCS-WAVE"].copy())
                     output = io.BytesIO()
-                    fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(data, header, name="IMAGE")]).writeto(output)
+                    fits.HDUList(output_hdus).writeto(output)
                     return output.getvalue()
         except AppError:
             raise

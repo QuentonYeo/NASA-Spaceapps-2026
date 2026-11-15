@@ -27,7 +27,7 @@ def test_fits_detector_distinguishes_moving_and_stationary_sources(moves):
         data[10, 10 + shift] = 99
         valid[10, 10 + shift] = False
         pixels = PreviewPixels(data, valid, (0, 10), "MJy/sr", 4.7, grid, region,
-                               np.full_like(data, .01))
+                               variance=np.full_like(data, .01))
         frames.append(detect_spots(exposure(index, index / 2), pixels, region))
 
     tracks, comparable = link_tracks(frames, region)

@@ -13,11 +13,13 @@ from app.services.irsa.s3_cutouts import S3Cutouts
 from app.services.jobs import LocalJobs
 from app.services.rendering import FitsRenderer
 from app.services.search_cache import SearchCache
+from app.services.fingerprints import Fingerprints
 
 
-def create_app(service=None) -> FastAPI:
+def create_app(service=None, fingerprints=None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
+        app.state.fingerprints = fingerprints or Fingerprints()
         jobs = None
         cutouts = None
         if service is None:
@@ -48,6 +50,7 @@ def create_app(service=None) -> FastAPI:
         try:
             yield
         finally:
+            app.state.fingerprints.close()
             if jobs is not None:
                 jobs.close()
             if cutouts is not None:

@@ -485,6 +485,8 @@ footer{
 }
 
 .zoom-control {
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -494,6 +496,8 @@ footer{
   margin-bottom: 12px;
 }
 .zoom-control select {
+  min-width: 0;
+  max-width: 100%;
   padding: 6px;
   border: 1px solid #334157;
   background: #0b131f;

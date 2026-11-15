@@ -52,13 +52,13 @@ export function useFrames() {
     if (next.error) setError(next.error.message);
   }, []);
 
-  const run = useCallback(async (input?: SkyQuery, restoring = false, loadMore = false) => {
+  const run = useCallback(async (input?: SkyQuery, restoring = false, loadMore = false, restart = false) => {
     if (!input && !session.current) return;
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
     const existing = session.current;
-    const sameQuery = !!(input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
+    const sameQuery = !!(!restart && input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
       input.dec === existing.query.dec && input.fov === existing.query.fov &&
       input.findMovers === existing.query.findMovers && input.detector === existing.query.detector && input.manualBatches === existing.query.manualBatches &&
       JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
@@ -119,7 +119,7 @@ export function useFrames() {
     return () => controller.current?.abort();
   }, [run, saved]);
 
-  const start = (input: SkyQuery) => run(input);
+  const start = (input: SkyQuery, restart = false) => run(input, false, false, restart);
   const resume = () => run(undefined, false, true);
 
   function stop() {

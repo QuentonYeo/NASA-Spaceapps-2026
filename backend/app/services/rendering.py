@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 from astropy import units as u
 from astropy.io import fits
+from app.services.wcs import spectral_wcs
 from astropy.wcs import WCS, WcsError
 from PIL import Image
 from reproject import reproject_interp
@@ -35,6 +36,7 @@ class PreviewPixels:
     wavelength_um: float | None
     wcs: WCS | None
     region: Region | None
+    native_fits: bytes | None = None
     variance: np.ndarray | None = None
 
 
@@ -94,6 +96,31 @@ def align_to_query(pixels: PreviewPixels) -> PreviewPixels | None:
     return replace(pixels, data=data[::-1], valid=valid[::-1], wcs=grid)
 
 
+def cropped_native_fits(cutout: bytes, crop: tuple[slice, slice]) -> bytes:
+    """Keep retained science and alternate WCS in the cached preview's native grid."""
+    rows, columns = crop
+    with fits.open(io.BytesIO(cutout), memmap=False) as hdus:
+        output = [fits.PrimaryHDU(header=hdus[0].header.copy())]
+        for name in ("IMAGE", "FLAGS", "VARIANCE", "ZODI"):
+            if name not in hdus:
+                continue
+            plane = hdus[name]
+            if plane.shape != hdus["IMAGE"].shape:
+                raise ValueError("Science plane shape mismatch")
+            header = plane.header.copy()
+            for keyword in list(header):
+                if keyword.startswith("CRPIX1"):
+                    header[keyword] -= columns.start
+                elif keyword.startswith("CRPIX2"):
+                    header[keyword] -= rows.start
+            output.append(fits.ImageHDU(np.array(plane.data[crop], copy=True), header, name=name))
+        if "WCS-WAVE" in hdus:
+            output.append(hdus["WCS-WAVE"].copy())
+        stream = io.BytesIO()
+        fits.HDUList(output).writeto(stream)
+        return stream.getvalue()
+
+
 def local_wavelength(hdus: fits.HDUList, region: Region) -> float | None:
     header = hdus["IMAGE"].header
     if "WCS-WAVE" not in hdus:
@@ -103,8 +130,7 @@ def local_wavelength(hdus: fits.HDUList, region: Region) -> float | None:
         height, width = hdus["IMAGE"].shape
         if not (-0.5 <= x < width - 0.5 and -0.5 <= y < height - 0.5):
             return None
-        spectral = WCS(header, fobj=hdus, key="W")
-        spectral.sip = None
+        spectral = spectral_wcs(hdus)
         wavelength, _ = spectral.pixel_to_world(x, y)
         value = float(wavelength.to_value(u.um))
         return value if np.isfinite(value) and value > 0 else None
@@ -146,18 +172,21 @@ class FitsRenderer:
                             wcs = candidate
                     except (WcsError, ValueError):
                         logger.debug("No usable celestial WCS for aligned preview", exc_info=True)
+            native_fits = cutout
             if crop_cached and region is not None:
                 crop = covered_slice(wcs, data.shape, region)
                 data, valid = data[crop], valid[crop]
                 if variance is not None:
                     variance = variance[crop]
                 wcs = wcs.slice(crop)
+                native_fits = cropped_native_fits(cutout, crop)
                 if not valid.any():
                     raise CutoutCoverageMiss
             if not valid.any():
                 raise ValueError("No valid pixels")
             low, high = np.percentile(data[valid], [0.5, 99.5])
-            return PreviewPixels(data, valid, (float(low), float(high)), unit, wavelength, wcs, region, variance)
+            return PreviewPixels(data, valid, (float(low), float(high)), unit, wavelength, wcs, region,
+                                 native_fits=native_fits, variance=variance)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise AppError("CUTOUT_INVALID", "The archive cutout could not be rendered.") from exc
 

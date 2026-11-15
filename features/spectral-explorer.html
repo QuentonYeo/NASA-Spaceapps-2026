@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spectral explorer | SPHEREx Sky Blink</title>
+<link rel="stylesheet" href="features.css">
+</head>
+<body>
+<main>
+<header>
+<p class="context">SPHEREx Sky Blink &middot; 15 November 2026</p>
+<h1>Spectral explorer</h1>
+<p>In Explore, inspect one sky region across wavelengths and observations. The native image and 102-channel mosaic spectrum share one sky selection.</p>
+</header>
+<nav aria-label="On this page"><a href="#workflow">Using the viewer</a><a href="#products">Spectrum data</a><a href="#photometry">Photometry</a><a href="#quality">Quality</a><a href="#layout">Layout</a><a href="#acquisition">Acquisition</a><a href="#coordinates">Coordinates</a><a href="#limits">Validation and limits</a></nav>
+<section id="workflow">
+<h2>Using the viewer</h2>
+<ol>
+<li>Choose <strong>Explore for movement</strong> from Home. Enter RA, Dec and FOV, optionally select a detector, then choose <strong>Start</strong>. The first batch loads on demand; use <strong>Load next batch</strong> for more observations.</li>
+<li>Click a location or drag a circular aperture on the native image. Adjust the aperture and background radii, then choose <strong>Update sky region</strong>.</li>
+<li>Read the background-subtracted spectrum in mJy. Reference annotations mark approximate spectral-feature positions; they do not identify compounds.</li>
+<li>Browse observations without changing the sky selection. A blue marker shows the displayed frame&rsquo;s wavelength at the query centre. Select a spectral channel to find loaded observations within its wavelength edges.</li>
+</ol>
+<p>The outline remains anchored in sky coordinates when native images change. Dashed rings show the background annulus. An uncached frame briefly reports positioning; missing WCS produces an explicit error. Portions outside the cutout are clipped.</p>
+<p>In Explore, click a location or drag a circular aperture to select a stationary sky region in a loaded native FOV image. The reference must retain its FITS coordinates. Cached larger cutouts are cropped with matching science planes and shifted primary/alternate reference pixels, keeping selection and preview coordinates consistent. Disk checkpoints restore previews rather than science FITS; Start in Explore reloads a preview-only search before region selection. The server resolves the aperture and annulus to ICRS coordinates immediately, so native overlays follow frame changes without waiting for the remote spectrum.</p>
+<p>The default annulus spans two to three times the aperture radius. Both radii are editable in the original reference image pixels; resolved angular sizes are displayed. These settings need not equal the notebook&rsquo;s example of 5/40/60 cube pixels. Reproducing a value requires the same position, radii and quality masks.</p>
+<p>All 102 numbered slots remain available in Channel coverage, grouped into six detectors. Wavelength centres and edges come from SPECTRAL_CHANNELS with calibrated units. DR1 slots 51 and 52 are intentionally blank. Missing channels remain null and disabled; negative accepted flux is retained. The slider skips unavailable measurements.</p>
+</section>
+<section id="products">
+<h2>Spectrum data</h2>
+<p>The 102-channel spectrum reads a separate DR1 HiPS FITS mosaic. It reports a fractional aperture sum minus a sigma-clipped local background, in mJy. The native observations provide sky selection and image navigation; their observation times and wavelength markers remain available in the viewer.</p>
+<p>The mosaic combines observations across epochs and does not provide flux uncertainty. There is one spectrum product in this app.</p>
+<p>Channel-to-frame navigation uses wavelength at the query centre. Wavelength varies spatially, so these links are navigation aids rather than a guarantee of identical bandpass or flux.</p>
+</section>
+<section id="photometry">
+<h2>Photometry and units</h2>
+<ol>
+<li>Find the order-5 HEALPix tiles intersecting the aperture and background annulus.</li>
+<li>Convert the angular radii to pixel-plane circles using the local WCS pixel solid angle, including HPX projection geometry.</li>
+<li>Sum the aperture using Photutils exact fractional pixel weights.</li>
+<li>Estimate the background from annulus pixel centres, with 3&sigma; clipping for up to 10 iterations.</li>
+<li>Subtract the background mean times the accepted aperture area, then convert MJy/sr to mJy using the local pixel solid angle.</li>
+</ol>
+<p>This matches the <a href="https://caltech-ipac.github.io/irsa-tutorials/spherex-hipscube/">IRSA HiPS tutorial</a> method. The app additionally applies finite-data, NHITS and flag masks, scales the subtraction to accepted area, and pools annulus samples across tile seams. Those extensions can change values relative to an unmasked notebook run.</p>
+<p>HiPS is itself a mosaic cube. Its position-indexed tiles support bounded region reads; this choice does not imply superior photometry to other mosaic products. Pixel-plane circles follow the tutorial, while the displayed sky-circle rings approximate them on distorted grids.</p>
+</section>
+<section id="quality">
+<h2>Quality and interpretation</h2>
+<p>Finite IMAGE values, positive NHITS and header-defined SOURCE/FULLSAMPLE flags are accepted in source and background. Other flags are rejected. Tile ownership prevents duplicate contributions. An empty accepted aperture or background annulus makes the channel unavailable rather than returning an unsubtracted source or an invented zero.</p>
+<p>Aperture coverage measures accepted fractional solid angle. Background coverage approximates accepted area after clipping. Partial flux remains visible with an explicit reason; there is no correction for missing source area. The cube already subtracts zodiacal light; the annulus estimates additional local background.</p>
+<p>The plot always shows background-subtracted mJy flux. One Composition references switch enables or disables all hydrogen, PAH, CO and ice annotations together. It is enabled by default and changes only the overlays, without modifying flux, the observation wavelength marker or extraction requests. Cited reference positions remain educational markers. They are not fitted band centres or chemical detections.</p>
+<p>The cube has no variance extension, so uncertainty and significance are unavailable. Combined epochs, striping, blending, unmatched PSFs and coarse pixels limit interpretation. Moving and variable targets are unsupported; an exoplanet-host aperture includes unresolved system light. No PSF or aperture correction is applied. Use the official IRSA spectrophotometry service for scientific source measurements.</p>
+</section>
+<section id="layout">
+<h2>Layout and performance</h2>
+<p>In Explore, the RA, Dec, FOV and detector controls always appear first in the control panel and stay expanded when observations load or the selection changes. Region controls follow below, with no top divider. The spectrum panel stays open with a bounded height and internal scrolling. Radius controls keep their space before selection, and asynchronous extraction does not expand the panel. Channel coverage is expandable. Composition references use one enabled-by-default on/off switch for all annotations; there are no individual reference controls. The quality policy and limitations are documented below. Mobile tabs preserve the selection; the spectrum remains available below the image.</p>
+<p>The plot shows background-subtracted mJy flux. Navigating frames or channels does not restart mosaic extraction. Native overlays are cached by sequence, frame and sky aperture, with only adjacent overlays prefetched.</p>
+<p>Saved searches reconnect after refresh and preserve the new manual-batch behavior. Preview-only disk checkpoints cannot supply native selection coordinates; Start in Explore reloads a search when all restored images lack retained science. Existing in-memory cutout coverage is reused where available.</p>
+<p>Channel measurements remain available separately below the viewer. Obsolete mosaic requests cannot publish results for another selection.</p>
+</section>
+<section id="acquisition">
+<h2>Acquisition and cache</h2>
+<p><code>POST /api/frames/{sequence}/fingerprints</code> starts or reuses an analysis and immediately returns its resolved sky region. <code>GET /api/frames/{sequence}/fingerprints/{analysis}</code> polls loading, ready or failed status. Requests are scoped to an existing sequence. There is no channel-image endpoint or preview-generation path.</p>
+<p>Validated HTTP 206 byte ranges read bounded IMAGE, NHITS and FLAGS row strips across the aperture and annulus. Up to twelve parallel reads batch rows per channel. Reads reject unbounded/full-file responses, retry transient failures, and enforce a two-minute deadline per tile and 2 MiB per-range cap. Background annuli can require substantially more data than an aperture-only measurement.</p>
+<p>The persistent range cache defaults to 1 GiB with oldest-range eviction; complete local tiles remain reusable. Analyses include release, sequence, region, annulus and processing version in their identity. Finished analyses expire after 30 minutes, with at most twelve retained and four pending/running; two workers extract photometry. Shutdown drains active workers and cancels queued work.</p>
+<p>Frame and channel navigation do not restart extraction. Native WCS projections are cached separately, up to 128 entries, with adjacent overlays prefetched. No notebook is imported at runtime. <a href="../backend/app/services/fingerprints.py">Extraction and cache implementation</a></p>
+</section>
+<section id="coordinates">
+<h2>Native images and aligned blink</h2>
+<p>The Home, Validate and Explore routes remain separate. Validate keeps its prepared examples, preferred comparison pairs, Gaia reference stars and optional Arosa trajectory. Spectrum controls and their mobile tabs appear only in Explore; the guided moving-object workflow does not start a stationary mosaic extraction.</p>
+<p>Region drawing and coordinate conversion use the native IMAGE WCS. Aligned Blink uses a separate north-up display grid, so native overlays and drawing are hidden there. Selecting a linked observation returns to its native image. Blink reference selection, add/remove, playback and shared contrast remain independent.</p>
+<p>The frontend uses SVG with React rather than a separate plotting library. Coordinate and extraction rules live in the backend; PNG previews are never used for photometry. <a href="../frontend/src/App.tsx">Viewer integration</a> &middot; <a href="aligned-blink.html">Aligned Blink contract</a></p>
+</section>
+<section id="limits">
+<h2>Exports, validation and limits</h2>
+<p>Frontend regressions cover channel navigation, projection reuse and scoping, obsolete requests, and overlays before mosaic completion. Backend tests cover mosaic photometry, FITS preservation, caching, wavelength WCS and missing data. These checks do not establish live scientific calibration or browser layout accuracy.</p>
+<p>Discovery covers the query centre, not every source within the FOV. Missing or unretained exposures stay unavailable. Combined epochs, blending, coarse mosaic pixels, unmatched PSFs and uncertain backgrounds limit interpretation. No abundance, chemical detection, moving-target spectrum or detection significance is inferred.</p>
+<p><a href="../frontend/src/components/FingerprintExplorer.test.tsx">Viewer regressions</a> &middot; <a href="../frontend/src/api/regionProjection.test.ts">Projection regressions</a> &middot; <a href="../backend/tests/test_fingerprints.py">Mosaic photometry tests</a> &middot; <a href="../backend/tests/test_native_regions.py">Native FITS and WCS tests</a></p>
+<p>Native FITS retention, sky-aperture conversion and coordinate projection remain shared support for this spectrum; they are implemented in <a href="../backend/app/services/native_regions.py">native_regions.py</a>.</p>
+<p>Channel CSV includes mJy flux, source and background contributions, background mean in MJy/sr, accepted area, counts, coverage, missing reasons, units and processing version. Provenance links point to the original FITS tiles.</p>
+<p>Regression tests compare the calculation with Photutils on fractional apertures, varying backgrounds, outliers and negative flux. They also cover missing annuli, tile-seam ownership, unit handling, range reads, caching and request scoping.</p>
+<p>The offline validator compares a supplied local Npix445 cube at the tutorial position and its 5/40/60-pixel radii. A local run matched all 100 usable channels to the equally quality-masked reference within 4.55 &times; 10<sup>&minus;13</sup> mJy; the unmasked notebook differed by up to 2.432 mJy because of masking. This is an implementation comparison at one tile, not calibration or a latency promise.</p>
+<pre><code>cd backend
+python -m scripts.validate_tutorial_photometry path/to/Npix445_cube.fits</code></pre>
+<p>The validator reads only the supplied file and prints a summary. It downloads nothing and creates no planning artifacts. <a href="../backend/scripts/validate_tutorial_photometry.py">Offline validator</a> &middot; <a href="../backend/tests/test_fingerprints.py">Regression tests</a></p>
+</section>
+<footer>SPHEREx Sky Blink documentation. <a href="viewer-workflows.html">Viewer workflows</a> &middot; <a href="aligned-blink.html">Aligned Blink</a></footer>
+</main>
+</body>
+</html>

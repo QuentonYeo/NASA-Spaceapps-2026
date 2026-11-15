@@ -346,7 +346,9 @@ def test_search_checkpoint_restores_previews_and_resumes_next_batch(tmp_path):
     restored_jobs = LocalJobs(search_cache=SearchCache(cache_path, 1_000_000, 3600))
     service = FramesService(Archive([]), Cutouts(), FitsRenderer(), restored_jobs, batch_size=1)
     try:
-        assert service.poll(sequence_id, 0) == original
+        restored = service.poll(sequence_id, 0)
+        assert restored == {**original, "frames": [{**frame, "scienceStatus": "unavailable"} for frame in original["frames"]]}
+        assert not restored_jobs.get(sequence_id).science
         service.next_batch(sequence_id, 1)
         assert completed(service, sequence_id)["status"] == "completed"
         assert [frame["id"] for frame in service.poll(sequence_id, 0)["frames"]] == ["one", "two"]
@@ -394,3 +396,13 @@ def test_irsa_discovery_uses_direct_search_endpoint(monkeypatch):
     assert collection == "spherex_dr1"
     assert isinstance(session, discovery.DeadlineSession)
     assert [frame.id for frame in frames] == ["sample"]
+
+
+def test_retention_budget_keeps_previews_and_reports_unavailable(service):
+    service.max_science_bytes = 1
+    service.archive = Archive([exposure()])
+    id = service.start(Region(0, 0, .1))["sequenceId"]
+    page = completed(service, id)
+    assert page["frames"][0]["status"] == "ready"
+    assert page["frames"][0]["scienceStatus"] == "retention_limit"
+    assert service.jobs.get(id).science == {}
