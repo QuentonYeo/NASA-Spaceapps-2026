@@ -149,6 +149,10 @@ def test_fov_linked_api_and_region_scoping(tmp_path):
     try:
         with TestClient(create_app(SimpleNamespace(jobs=jobs),fingerprints=service)) as client:
             body={'referenceFrameId':'frame/0','circle':{'x':15,'y':15,'radiusPixels':3}}
+            saved_region = client.post('/api/frames/fov/sky-region', json=body)
+            assert saved_region.status_code == 200, saved_region.text
+            assert saved_region.json() == pytest.approx(region().model_dump())
+            assert not service.cache.calls
             response=client.post('/api/frames/fov/fingerprints',json=body)
             assert response.status_code==202,response.text
             assert client.post('/api/frames/fov/spectra', json={}).status_code == 404
@@ -165,6 +169,7 @@ def test_fov_linked_api_and_region_scoping(tmp_path):
             assert response.json()['result']['usableChannels']==100
             body['referenceFrameId']='unloaded'
             assert client.post('/api/frames/fov/fingerprints',json=body).status_code==409
+            assert client.post('/api/frames/fov/sky-region', json=body).status_code == 409
             assert client.get(f'/api/frames/other/fingerprints/{key}').status_code==404
             assert len(service.cache.calls)==1 # No separate image acquisition.
     finally: jobs.close()

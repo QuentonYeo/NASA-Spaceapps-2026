@@ -1,13 +1,17 @@
 import catalog from '../../../shared/demo-examples.json';
 import type { ObservationInputs } from '../ObservationFields';
+import type { SkyQuery } from '../api/frames';
 
-interface ValidationExample {
+export interface ValidationExample {
   id: string;
   name: string;
   purpose: string;
   inputs: ObservationInputs;
   exposureIds?: string[];
   blinkIds: string[];
+  collections?: SkyQuery['collections'];
+  detector?: string;
+  radiusArcsec?: number;
 }
 
 const dr1 = 'ivo://irsa.ipac/spherex_dr1?';

@@ -29,8 +29,9 @@ class FramesService:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
-    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False, refresh: bool = False, request_group: str | None = None) -> dict:
-        key = (region, tuple(sorted(exposure_ids or [])), detector, find_movers, request_group)
+    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False, refresh: bool = False, request_group: str | None = None, collections: tuple[str, ...] | None = None) -> dict:
+        releases = tuple(sorted(set(collections or getattr(self.archive, "collections", ("spherex_dr1",)))))
+        key = (releases, region, tuple(sorted(exposure_ids or [])), detector, find_movers, request_group)
         with self.jobs.lock:
             if not refresh:
                 existing = next((job for job in self.jobs.items.values()
@@ -43,7 +44,7 @@ class FramesService:
                             (previous.status in {"queued", "discovering", "running", "awaiting_more"}
                              or previous.automatic_measurements_running)):
                         self.jobs.cancel(previous)
-            if self.demo_store is not None and not refresh:
+            if self.demo_store is not None and not refresh and releases == ("spherex_dr1",):
                 demo = self.demo_store.replay(region, exposure_ids, detector, find_movers)
                 if demo is not None:
                     demo.request_group = request_group
@@ -53,11 +54,12 @@ class FramesService:
             if find_movers:
                 job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
             self.jobs.add(job)
-            job.future = self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
+            job.future = self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector, collections)
             return {"sequenceId": job.id, "status": "queued",
                     "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
 
-    def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None):
+    def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None,
+             collections: tuple[str, ...] | None = None):
         try:
             if job.cancelled.is_set():
                 return
@@ -65,7 +67,9 @@ class FramesService:
                 raise AppError("SEARCH_QUEUE_TIMEOUT", "Search waited over 15 seconds for a worker. Please retry.", 503, True, 1)
             with job.lock:
                 job.status = "discovering"
-            exposures = sorted({f.id: f for f in self.archive.discover(job.region)}.values(), key=lambda f: (f.mjd, f.id))
+            discovered = (self.archive.discover(job.region, collections=collections) if collections
+                          else self.archive.discover(job.region))
+            exposures = sorted({f.id: f for f in discovered}.values(), key=lambda f: (f.mjd, f.id))
             if job.cancelled.is_set():
                 return
             if exposure_ids:

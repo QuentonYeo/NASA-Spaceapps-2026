@@ -9,6 +9,9 @@ class FrameQuery(BaseModel):
     fov: float = Field(gt=0, le=1, description="Square cutout side length in degrees")
     exposureIds: list[str] | None = Field(default=None, min_length=1, max_length=12)
     detector: Literal["D1", "D2", "D3", "D4", "D5", "D6"] | None = None
+    collections: tuple[Literal["spherex_dr1", "spherex_qr3"], ...] | None = Field(
+        default=None, min_length=1, max_length=2,
+        description="IRSA Wide Survey spectral image collections for this search.")
     findMovers: bool = False
     refresh: bool = False
     requestGroup: str | None = Field(default=None, min_length=1, max_length=64)

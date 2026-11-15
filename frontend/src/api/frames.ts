@@ -1,8 +1,13 @@
+import type { Region, RegionSelection } from './regions';
+
+export type SpectralImageCollection = 'spherex_dr1' | 'spherex_qr3';
+
 export interface SkyQuery {
   requestGroup?: string;
   refresh?: boolean;
   ra: number; dec: number; fov: number;
   exposureIds?: string[];
+  collections?: SpectralImageCollection[];
   detector?: string;
   findMovers?: boolean;
 }
@@ -74,7 +79,7 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET', timeoutMs = 20_000): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | Pick<RegionSelection, 'referenceFrameId' | 'circle'> | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET', timeoutMs = 20_000): Promise<T> {
   let response: Response;
   const timeout = AbortSignal.timeout(timeoutMs);
   try {
@@ -136,10 +141,10 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  const { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, refresh } = query;
+  const { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, refresh, collections } = query;
   for (let attempt = 0; ; attempt++) {
     try {
-      return await request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, ...(refresh ? { refresh: true } : {}) });
+      return await request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, collections, ...(refresh ? { refresh: true } : {}) });
     } catch (error) {
       // Only retry explicit rejections: a timed-out POST may already have created a job.
       if (signal.aborted || !(error instanceof RequestError) || !error.retryable ||
@@ -147,6 +152,11 @@ export async function startSequence(query: SkyQuery, signal: AbortSignal): Promi
       await wait(Math.min(10, Math.max(2 ** attempt, error.retryAfter)) * 1000, signal);
     }
   }
+}
+
+export function resolveSkyRegion(selection: RegionSelection, signal: AbortSignal): Promise<Region> {
+  const { sequenceId, referenceFrameId, circle } = selection;
+  return request<Region>(`/api/frames/${encodeURIComponent(sequenceId)}/sky-region`, signal, { referenceFrameId, circle });
 }
 
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {

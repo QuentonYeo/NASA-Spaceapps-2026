@@ -5,9 +5,28 @@ from astropy.wcs import WcsError
 from app.domain.models import Region
 from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, MotionPhotometryQuery, ObservationAnalysis, SequencePage
 from app.services.interfaces import Frames
-from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus
+from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus, NativeRegionQuery
 
 router = APIRouter(prefix="/frames", tags=["frames"])
+
+
+def resolve_native_region(sequence_id: str, query: NativeRegionQuery, request: Request) -> Aperture:
+    from app.domain.errors import AppError
+    job = request.app.state.frames.jobs.get(sequence_id)
+    data = job.science_cutout(query.referenceFrameId)
+    if data is None:
+        raise AppError("SCIENCE_UNAVAILABLE", "Choose a loaded native image with retained coordinates.", 409)
+    try:
+        return sky_aperture(data, query.circle)
+    except (ValueError, KeyError, OSError, TypeError) as exc:
+        raise AppError("INVALID_REFERENCE_REGION", str(exc), 422) from exc
+
+
+@router.post("/{sequence_id}/sky-region", response_model=Aperture)
+def native_sky_region(sequence_id: str, query: NativeRegionQuery, request: Request, response: Response):
+    """Convert a circle on a retained native frame into a sky region without starting cube analysis."""
+    response.headers["Cache-Control"] = "no-store"
+    return resolve_native_region(sequence_id, query, request)
 
 
 @router.post("/{sequence_id}/fingerprints", status_code=202, response_model=AcceptedFingerprint)
@@ -19,15 +38,7 @@ def start_fingerprint(sequence_id: str, query: FingerprintQuery, request: Reques
     Native reference coordinates must be retained; aligned-image pixels are not
     accepted as native coordinates. Cube downloads are disk-cached and bounded.
     """
-    from app.domain.errors import AppError
-    job = request.app.state.frames.jobs.get(sequence_id)
-    data = job.science_cutout(query.referenceFrameId)
-    if data is None:
-        raise AppError("SCIENCE_UNAVAILABLE", "Choose a loaded native image with retained coordinates.", 409)
-    try:
-        region = sky_aperture(data, query.circle)
-    except (ValueError, KeyError, OSError, TypeError) as exc:
-        raise AppError("INVALID_REFERENCE_REGION", str(exc), 422) from exc
+    region = resolve_native_region(sequence_id, query, request)
     response.headers["Cache-Control"] = "no-store"
     return {**request.app.state.fingerprints.start(sequence_id, region, retry=query.retry), "region": region.model_dump()}
 
@@ -48,7 +59,7 @@ def get_frames_service(request: Request) -> Frames:
 def start_frames(query: FrameQuery, response: Response,
                  service: Annotated[Frames, Depends(get_frames_service)]):
     result = service.start(Region(query.ra, query.dec, query.fov),
-                           exposure_ids=query.exposureIds, detector=query.detector, find_movers=query.findMovers, refresh=query.refresh, request_group=query.requestGroup)
+                           exposure_ids=query.exposureIds, detector=query.detector, find_movers=query.findMovers, refresh=query.refresh, request_group=query.requestGroup, collections=query.collections)
     response.headers["Location"] = result["pollUrl"]
     response.headers["Cache-Control"] = "no-store"
     return result

@@ -406,3 +406,45 @@ def test_retention_budget_keeps_previews_and_reports_unavailable(service):
     assert page["frames"][0]["status"] == "ready"
     assert page["frames"][0]["scienceStatus"] == "retention_limit"
     assert service.jobs.get(id).science == {}
+
+
+@pytest.mark.parametrize("include_qr3", [False, True])
+def test_search_uses_requested_irsa_releases(service, monkeypatch, include_qr3):
+    from app.services.irsa import discovery
+
+    calls = []
+
+    class Search:
+        def __init__(self, _url, *, pos, collection, session):
+            self.collection = collection
+            calls.append(collection)
+
+        def execute(self):
+            return self
+
+        def to_table(self):
+            return [{
+                "obs_publisher_did": self.collection,
+                "access_url": "https://irsa.ipac.caltech.edu/ibe/data/test.fits",
+                "obs_collection": self.collection,
+                "energy_bandpassname": "SPHEREx-D6",
+                "t_min": 60000.0,
+            }]
+
+    monkeypatch.setattr(discovery, "SIA2Query", Search)
+    service.archive = discovery.IrsaArchive()
+    collections = ["spherex_dr1", "spherex_qr3"] if include_qr3 else ["spherex_dr1"]
+    with TestClient(create_app(service)) as client:
+        response = client.post("/api/frames", json={
+            "ra": 210.8, "dec": 54.3, "fov": .1, "collections": collections,
+        })
+        assert response.status_code == 202
+        page = completed(service, response.json()["sequenceId"])
+        assert page["status"] == "completed"
+        assert calls == collections
+        assert sorted(frame["release"] for frame in page["frames"]) == collections
+
+        rejected = client.post("/api/frames", json={
+            "ra": 210.8, "dec": 54.3, "fov": .1, "collections": ["spherex_dr1_cube"],
+        })
+        assert rejected.status_code == 422
