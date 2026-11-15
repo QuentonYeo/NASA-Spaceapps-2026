@@ -11,6 +11,7 @@ from app.services.interfaces import Archive, Cutouts, Renderer
 from app.services.jobs import Job, LocalJobs
 from app.services.movers import detect_spots, link_tracks, prioritize_exposures
 from app.services.native_regions import compact_science
+from app.services.motion_photometry import measure_position
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +206,7 @@ class FramesService:
             if job.observation is not None:
                 previous = job.observation["status"]
                 if not start or previous == "running" or (previous == "completed" and not rerun):
+                    self._ensure_candidate_measurements(job)
                     return job.observation
             ready_count = sum(frame["status"] == "ready" for frame in job.results)
             aligned_ids = {frame["id"] for frame in job.results if frame.get("alignedImageData")}
@@ -247,12 +249,92 @@ class FramesService:
                 }
                 job.finished = time.monotonic()
                 self.jobs.checkpoint(job)
+                self._ensure_candidate_measurements(job)
         except Exception:
             logger.exception("Auto observation failed for sequence %s", job.id)
             with job.lock:
                 job.observation = {**job.observation, "status": "failed",
                                    "error": "Motion analysis could not finish. Try Auto observation again."}
                 job.finished = time.monotonic()
+
+    def measure_candidate(self, job: Job, candidate_id: str, radius: float = 2.5) -> dict:
+        """Serialize follow-up requests per search and reuse the automatic default result."""
+        with job.measurement_lock:
+            analysis = job.observation or {}
+            if analysis.get("status") != "completed":
+                raise AppError("MOTION_ANALYSIS_NOT_READY", "Wait for Auto observation to finish before measuring a candidate.", 409)
+            candidate = next((item for item in analysis.get("candidates", []) if item["id"] == candidate_id), None)
+            if candidate is None:
+                raise AppError("CANDIDATE_NOT_FOUND", "This candidate is not part of the completed motion analysis.", 404)
+            if len(candidate["detections"]) > 10:
+                raise AppError("CANDIDATE_TOO_LARGE", "This candidate has too many supporting frames to measure at once.", 422)
+            cached = analysis.get("measurements", {}).get(candidate_id, {})
+            if radius == 2.5 and cached.get("status") == "completed":
+                return cached["result"]
+            exposures = {exposure.id: exposure for exposure, _ in job.exposures}
+            rows = []
+            for point in candidate["detections"]:
+                exposure = exposures.get(point["frameId"])
+                if exposure is None:
+                    raise AppError("UNKNOWN_FRAME", "A candidate position does not belong to this sequence.", 422)
+                row = {"frameId": point["frameId"], "observedAtUtc": exposure.observed_at,
+                       "detector": exposure.detector, "release": exposure.release,
+                       "sourceFitsUrl": exposure.url, "ra": point["ra"], "dec": point["dec"],
+                       "detectionSnr": point["signalToNoise"]}
+                try:
+                    cutout = self.science_for_analysis(job, exposure)
+                    rows.append({**row, **measure_position(cutout, point["ra"], point["dec"], radius)})
+                except (AppError, OSError, KeyError, TypeError, ValueError) as exc:
+                    rows.append({**row, "status": "unavailable", "reason": str(exc)})
+                except Exception:
+                    logger.warning("Candidate measurement unavailable for frame %s", exposure.id, exc_info=True)
+                    rows.append({**row, "status": "unavailable", "reason": "Native science could not be loaded or measured for this frame."})
+            return {"candidateId": candidate_id, "unit": "mJy", "processingVersion": "moving-aperture-quicklook-v1",
+                    "method": "native circular aperture with local clipped-median background",
+                    "radiusPixels": radius, "measurements": rows}
+
+    def _ensure_candidate_measurements(self, job: Job):
+        with job.lock:
+            if (job.observation or {}).get("status") != "completed" or job.automatic_measurements_running:
+                return
+            entries = dict(job.observation.get("measurements", {}))
+            pending = [candidate["id"] for candidate in job.observation["candidates"]
+                       if entries.get(candidate["id"], {}).get("status") not in {"completed", "failed"}]
+            if not pending:
+                return
+            for candidate_id in pending:
+                entries[candidate_id] = {"status": "queued"}
+            job.observation = {**job.observation, "measurements": entries}
+            job.automatic_measurements_running = True
+            job.finished = None
+            self.jobs.executor.submit(self._measure_candidates, job, pending)
+
+    def _measure_candidates(self, job: Job, candidate_ids: list[str]):
+        try:
+            for candidate_id in candidate_ids:
+                self._measurement_state(job, candidate_id, {"status": "running"})
+                try:
+                    result = self.measure_candidate(job, candidate_id)
+                    usable = any(row["status"] != "unavailable" for row in result["measurements"])
+                    entry = {"status": "completed" if usable else "failed", "result": result}
+                    if not usable:
+                        entry["error"] = "No usable measurements. Select Measure candidate to retry."
+                except Exception:
+                    logger.exception("Automatic measurement failed for candidate %s", candidate_id)
+                    entry = {"status": "failed", "error": "Automatic measurement failed. Select Measure candidate to retry."}
+                self._measurement_state(job, candidate_id, entry)
+        finally:
+            with job.lock:
+                job.automatic_measurements_running = False
+                job.finished = time.monotonic()
+                self.jobs.checkpoint(job)
+
+    def _measurement_state(self, job: Job, candidate_id: str, entry: dict):
+        with job.lock:
+            job.observation = {**job.observation, "measurements": {
+                **job.observation.get("measurements", {}), candidate_id: entry,
+            }}
+            self.jobs.checkpoint(job)
 
     def gaia_sources(self, sequence_id: str) -> dict:
         job = self.jobs.get(sequence_id)

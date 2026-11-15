@@ -129,6 +129,7 @@ class ObservationAnalysis(MotionSearch):
     availableFrames: int
     processedFrames: int
     error: str | None
+    measurements: dict[str, dict] = Field(default_factory=dict)
 
 
 class SequencePage(BaseModel):

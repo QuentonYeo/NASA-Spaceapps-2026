@@ -181,3 +181,5 @@ The viewer reads tutorial-style aperture photometry from a separate HiPS mosaic.
 See the [spectrum documentation](../features/spectral-explorer.html) for its
 API, quality policy and limitations. Native FITS retention and sky-coordinate
 projection support selection; the per-exposure region-spectrum API is removed.
+
+After Auto observation detects candidates, default aperture measurements (2.5 native pixels) run sequentially in the background. The auto-observation response includes a measurements map keyed by candidate ID, containing status and completed results. Poll until detection and all measurements finish. Checkpoints preserve completed measurements; reopening resumes unfinished work. POST motion-photometry supports manual custom-radius measurements and reuses completed default results.

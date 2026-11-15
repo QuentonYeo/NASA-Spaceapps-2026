@@ -30,6 +30,8 @@ class Job:
     display_limits: dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
     motion: dict | None = None
     observation: dict | None = None
+    measurement_lock: RLock = field(default_factory=RLock)
+    automatic_measurements_running: bool = False
     gaia_catalogue: dict | None = None
     gaia_lock: Lock = field(default_factory=Lock)
     error: dict | None = None

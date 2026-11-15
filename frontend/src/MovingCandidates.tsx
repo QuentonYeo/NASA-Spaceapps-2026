@@ -21,6 +21,7 @@ export function MovingCandidates({ search, activeId, onReview }: Props) {
         <button type="button" aria-pressed={activeId === candidate.id} onClick={() => onReview(candidate)}>
           <strong>Candidate {index + 1}</strong>
           <span>{candidate.detector} · {candidate.detections.length} positions · {candidate.displacementArcsec.toFixed(0)}″ over {candidate.elapsedHours.toFixed(1)} h</span>
+          {search.measurements?.[candidate.id] && <span>Measurements: {search.measurements[candidate.id].status}</span>}
         </button>
       </li>)}
     </ol>}

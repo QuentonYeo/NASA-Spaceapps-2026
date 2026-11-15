@@ -77,7 +77,9 @@ def test_auto_observation_links_all_downloaded_batches_without_refetching(tmp_pa
             data = np.random.default_rng(42).normal(0, .1, (51, 51))
             data += 8 * np.exp(-((cols - 14 - offset) ** 2 + (rows - 23) ** 2) / 2)
             output = io.BytesIO()
-            fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(data, grid.to_header(), name="IMAGE")]).writeto(output)
+            header = grid.to_header()
+            header['BUNIT'] = 'MJy/sr'
+            fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(data, header, name="IMAGE")]).writeto(output)
             return output.getvalue()
 
     class Renderer(FitsRenderer):
@@ -116,6 +118,13 @@ def test_auto_observation_links_all_downloaded_batches_without_refetching(tmp_pa
             result = wait_for(analysis_url, "completed")
             assert result["readyFrames"] == result["availableFrames"] == result["analyzedFrames"] == 3
             assert len(result["candidates"]) == 1
+            for _ in range(200):
+                result = client.get(analysis_url).json()
+                if all(item['status'] == 'completed' for item in result['measurements'].values()) and not restored.automatic_measurements_running:
+                    break
+                time.sleep(.005)
+            assert result['measurements']['1']['status'] == 'completed'
+            assert len(result['measurements']['1']['result']['measurements']) == 3
             assert client.post(analysis_url).json() == result
             assert client.post(analysis_url + "?rerun=true").json()["status"] == "running"
             assert wait_for(analysis_url, "completed") == result

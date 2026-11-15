@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MotionCandidate, MotionPhotometryResult } from './api/frames';
+import type { CandidateMeasurement, MotionCandidate, MotionPhotometryResult } from './api/frames';
 import { fetchMotionPhotometry, RequestError } from './api/frames';
 
 const number = (value?: number | null, digits = 4) => value == null || !Number.isFinite(value) ? 'Unavailable' : value.toPrecision(digits);
@@ -54,10 +54,13 @@ function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
   </svg>;
 }
 
-export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange, autoMeasureRequest = 0, onViewStationarySpectrum }: {
+export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange, autoMeasureRequest = 0, onViewStationarySpectrum, automatic }: {
   sequenceId: string; candidate: MotionCandidate; radius: number; onRadiusChange: (radius: number) => void; autoMeasureRequest?: number; onViewStationarySpectrum?: () => void;
+  automatic?: CandidateMeasurement;
 }) {
-  const [result, setResult] = useState<MotionPhotometryResult | null>(null);
+  const [manualResult, setResult] = useState<MotionPhotometryResult | null>(null);
+  const result = manualResult ?? (radius === 2.5 ? automatic?.result : undefined);
+  const autoPending = radius === 2.5 && (automatic?.status === 'queued' || automatic?.status === 'running');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);
@@ -81,8 +84,9 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
   useEffect(() => {
     if (autoMeasureRequest <= 0 || autoMeasureRequest === lastAutoMeasureRequest.current) return;
     lastAutoMeasureRequest.current = autoMeasureRequest;
+    if (autoPending || result) return;
     void measure();
-  }, [autoMeasureRequest, measure]);
+  }, [autoMeasureRequest, measure, autoPending, result]);
 
   function download() {
     if (!result) return;
@@ -99,14 +103,16 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
     <p className="hint">Measure the marked position in each supporting native frame. These are quick-look exposure measurements, not the stationary 102-channel mosaic spectrum.</p>
     <div className="motion-analysis-controls">
       <label>Aperture radius (native pixels)
-        <input type="number" min="0.5" max="8" step="0.5" value={Number.isFinite(radius) ? radius : ''} onChange={event => {
+        <input type="number" disabled={loading} min="0.5" max="8" step="0.5" value={Number.isFinite(radius) ? radius : ''} onChange={event => {
           onRadiusChange(event.target.value === '' ? NaN : Number(event.target.value)); setResult(null); setError('');
         }} />
       </label>
-      <button className="primary" disabled={loading || !Number.isFinite(radius) || radius < .5 || radius > 8} onClick={() => void measure()}>
+      <button className="primary" disabled={loading || autoPending || !Number.isFinite(radius) || radius < .5 || radius > 8} onClick={() => void measure()}>
         {loading ? 'Measuring…' : result ? 'Measure again' : 'Measure candidate'}
       </button>
     </div>
+    {autoPending && <p role="status">{automatic?.status === 'queued' ? 'Queued for automatic measurement.' : 'Automatically measuring this candidate…'}</p>}
+    {radius === 2.5 && automatic?.status === 'failed' && !result && !loading && <p role="alert">{automatic.error}</p>}
     {loading && <p role="status">Loading native science when needed and measuring candidate positions…</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {result && <>

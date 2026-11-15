@@ -42,6 +42,13 @@ export interface MotionSearch {
 export interface ObservationAnalysis extends MotionSearch {
   status: 'idle' | 'running' | 'completed' | 'failed';
   readyFrames: number; availableFrames: number; processedFrames: number; error: string | null;
+  measurements?: Record<string, CandidateMeasurement>;
+}
+
+export interface CandidateMeasurement {
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  result?: MotionPhotometryResult;
+  error?: string;
 }
 
 export interface SequencePage {

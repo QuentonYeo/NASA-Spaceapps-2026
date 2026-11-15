@@ -25,7 +25,7 @@ The stationary mosaic result must not be described as a spectrum of a moving obj
 - Candidate review opens the supporting frames in Aligned Blink and draws a violet circle at each measured position.
 - Track summaries show detector, detection count, displacement, and elapsed time.
 - Verify includes a per-candidate quick-look measurement panel below the blink image and comparison table. It measures each recorded candidate position in its supporting native FITS frame and shows aperture flux versus time, sparse flux-versus-wavelength samples, a quality table, and CSV export.
-- In Verify, clicking the violet measured-position marker scrolls to that panel and starts the measurement; hovering keeps the compact marker hint.
+- In Verify, clicking the violet measured-position marker scrolls to that panel and shows the automatically queued results; hovering keeps the compact marker hint.
 - If a supporting science cutout is no longer retained in memory or the saved search cache, measurement reloads that exposure from the archive on demand.
 - The stationary-region spectrum selects a native-image sky position and measures a separate, combined-epoch 102-channel HiPS mosaic.
 - The moving-candidate measurement is linked to backend-generated candidate IDs and positions. Arbitrary image-click photometry, target-centered stacking, known-object cross-match, and PSF-matched moving-source photometry are not implemented.
@@ -42,7 +42,7 @@ Keep this layout. The inline relationship and responsive access are implemented;
 
 ## Delivery status
 
-Implementation status below describes the staged UI scope, not completion of every delivery-phase requirement. Phase 0 scientific validation remains open. Phase 1 still needs review decisions/notes, detailed pixel-quality inspection, and dedicated stationary comparison controls. Phase 2 has numerical regression checks for masked NaN pixels and cutout-edge coverage; reference photometry validation remains open. Automatic measurement after detection is proposed and is not implemented.
+Implementation status below describes the staged UI scope, not completion of every delivery-phase requirement. Phase 0 scientific validation remains open. Phase 1 still needs review decisions/notes, detailed pixel-quality inspection, and dedicated stationary comparison controls. Phase 2 has numerical regression checks for masked NaN pixels and cutout-edge coverage; reference photometry validation remains open. Automatic measurement after detection is implemented for user review: each candidate is measured in the background at a default radius of 2.5 native pixels, with separate status/results persisted in the sequence checkpoint. Custom-radius measurements remain manual.
 
 
 - **Stage 1 — Candidate Verify handoff: implemented for user review.** Candidate selection is labelled Verify, identifies the selected candidate and blink position, and provides a return to native observations. Validate remains clearly labelled for prepared examples. This stage does not add new measurements.
@@ -146,7 +146,7 @@ Use these as product and workflow references, not as evidence that their instrum
 
 **Exit:** the same candidate and saved inputs reproduce the same per-frame measurements; incomplete or invalid samples are visible, not silently dropped.
 
-**Stage 2 implementation checkpoint:** open an auto-detected candidate in Verify and select **Measure candidate**. Review the UTC rows, local wavelength/bandwidth, flux, uncertainty availability, coverage and quality reason. Confirm partial/unavailable measurements stay explicit, plots distinguish partial coverage, and CSV export includes frame-level provenance. Compare the displayed aperture radius and source position with the blink frames; the local background annulus is used in extraction but is not drawn yet. The uncertainty omits covariance and calibration systematics, so this is not PSF-matched or publication-grade photometry.
+**Stage 2 implementation checkpoint:** wait for automatic measurements to complete and open an auto-detected candidate in Verify. Confirm its default 2.5-pixel results appear without an extra request; then change the radius and select **Measure candidate** to inspect a custom aperture. Review the UTC rows, local wavelength/bandwidth, flux, uncertainty availability, coverage and quality reason. Confirm partial/unavailable measurements stay explicit, plots distinguish partial coverage, and CSV export includes frame-level provenance. Compare the displayed aperture radius and source position with the blink frames; the local background annulus is used in extraction but is not drawn yet. The uncertainty omits covariance and calibration systematics, so this is not PSF-matched or publication-grade photometry.
 
 ### Phase 3 — Stationary spectrum placement and analysis chooser
 

@@ -197,6 +197,7 @@ function App() {
     resetBlink();
     setReviewId(track.id);
     setAnalysisRequest(0);
+    setAnalysisRadius(2.5);
     setReviewContrast('auto');
     setSelectedId(first.frameId);
     setAppendedIds(remaining.map((point) => point.frameId));
@@ -519,7 +520,7 @@ function App() {
           <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
           <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
         </section>}
-        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} />}
+        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} automatic={motion?.measurements?.[activeTrack.id]} />}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">
