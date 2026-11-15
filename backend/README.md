@@ -86,12 +86,12 @@ Environment variables read at app startup:
 | `MAX_FRAMES` | `300` | Maximum unique exposures per sequence |
 | `VISIT_GAP_DAYS` | `10` | Consecutive-frame gap defining a new observation group |
 | `CUTOUT_WORKERS` | `4` | Concurrent cutouts per running job |
-| `MAX_JOBS` | `8` | Maximum retained jobs, including queued and completed |
-| `JOB_TTL_SECONDS` | `1800` | Retention after completion |
+| `MAX_JOBS` | unset | Optional maximum retained jobs; no job-count limit by default |
+| `JOB_TTL_SECONDS` | `120` | In-memory retention after completion; disk checkpoints remain resumable |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated frontend origins |
 
-Two sequence jobs execute concurrently; pending jobs are bounded by MAX_JOBS.
-At capacity POST returns 503. Retryable archive reads use at most three attempts,
+Two sequence jobs execute concurrently; additional jobs queue without a default count limit.
+An explicitly configured MAX_JOBS returns 503 at capacity. The viewer retries explicit retryable 429/503 search rejections up to three times with bounded backoff. Requests time out after 20 seconds; polling retries transient failures three times. Timed-out job creation is not automatically repeated because it may already have succeeded. Retryable archive reads use at most three attempts,
 exponential backoff plus jitter, Retry-After, a 90-second retry budget and bounded
 network timeouts. The budget is checked between operations/chunks; an in-flight
 blocking read can run until its network timeout. Exhausted frame failures do not
@@ -181,3 +181,11 @@ The viewer reads tutorial-style aperture photometry from a separate HiPS mosaic.
 See the [spectrum documentation](../features/spectral-explorer.html) for its
 API, quality policy and limitations. Native FITS retention and sky-coordinate
 projection support selection; the per-exposure region-spectrum API is removed.
+
+After Auto observation detects candidates, default aperture measurements (2.5 native pixels) run sequentially in the background. The auto-observation response includes a measurements map keyed by candidate ID, containing status and completed results. Poll until detection and all measurements finish. Checkpoints preserve completed measurements; reopening resumes unfinished work. POST motion-photometry supports manual custom-radius measurements and reuses completed default results.
+
+Search scheduling: identical in-flight searches from a browser tab share a job. A new query from that tab supersedes its older work. Queued searches time out after 15 seconds (checked every second), independently of active archive network timeouts. Completed in-memory jobs are cleaned up by a background thread after JOB_TTL_SECONDS. Automatic photometry uses a separate single-worker executor and checkpoints once at completion. Prepared demos are connected at application startup; partial default photometry may be retried.
+
+The tracked `demo/known-objects/frames.sqlite3` is loaded read only by default. All eight Known Objects datasets have native FITS (1,256 frames). Exact-region Explore queries reuse snapshots, with curated subsets explicitly identified; live discovery/refresh also reuses bundled FITS by exposure ID and exact region. The frontend and backend share `shared/demo-examples.json`. Runtime caches remain independent.
+
+The repository also carries the local spectrum cache as checksummed archive parts under `demo/spectrum-cache/`; first spectrum use restores it to the writable cache automatically. Six Gaia catalogues, older prepared-field snapshots and 222 extra native FITS are tracked under `demo/known-objects/gaia/` and `demo/additional-observations/`. These snapshots are partial beyond the complete Known Objects datasets; uncached spectrum ranges still require IRSA.

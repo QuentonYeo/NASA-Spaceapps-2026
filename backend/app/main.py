@@ -13,6 +13,7 @@ from app.services.irsa.s3_cutouts import S3Cutouts
 from app.services.jobs import LocalJobs
 from app.services.rendering import FitsRenderer
 from app.services.search_cache import SearchCache
+from app.services.demos import DemoCutouts, DemoStore
 from app.services.fingerprints import Fingerprints
 
 
@@ -29,6 +30,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
             workers = int(os.getenv("CUTOUT_WORKERS", "4"))
             cutouts = (S3Cutouts(connections=2 * workers) if provider == "s3"
                        else IrsaCutouts(connections=2 * workers))
+            demo_store = DemoStore()
+            cutouts = DemoCutouts(cutouts, demo_store)
             cache = CutoutCache(int(os.getenv("CUTOUT_CACHE_BYTES", str(128 * 1024 * 1024))))
             search_bytes = int(os.getenv("SEARCH_CACHE_BYTES", str(256 * 1024 * 1024)))
             cache_root = Path.home() / ".cache"
@@ -41,8 +44,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                 search_bytes, int(os.getenv("SEARCH_CACHE_TTL_SECONDS", str(7 * 86400))),
                 science_max_bytes=int(os.getenv("SEARCH_SCIENCE_CACHE_BYTES", str(1024 ** 3))),
             ) if search_bytes > 0 else None
-            jobs = LocalJobs(max_jobs=int(os.getenv("MAX_JOBS", "8")),
-                             ttl=int(os.getenv("JOB_TTL_SECONDS", "1800")), search_cache=search_cache)
+            jobs = LocalJobs(max_jobs=int(os.environ["MAX_JOBS"]) if os.getenv("MAX_JOBS") else None,
+                             ttl=int(os.getenv("JOB_TTL_SECONDS", "120")), search_cache=search_cache)
             app.state.frames = FramesService(
                 IrsaArchive(tuple(os.getenv("IRSA_COLLECTIONS", "spherex_dr1").split(","))),
                 cutouts, FitsRenderer(), jobs,
@@ -51,7 +54,8 @@ def create_app(service=None, fingerprints=None) -> FastAPI:
                 cutout_workers=int(os.getenv("CUTOUT_WORKERS", "4")),
                 batch_size=int(os.getenv("FRAME_BATCH_SIZE", "12")),
                 cutout_cache=cache,
-                max_science_bytes=int(os.getenv("MAX_SCIENCE_BYTES", str(256 * 1024 ** 2))))
+                max_science_bytes=int(os.getenv("MAX_SCIENCE_BYTES", str(256 * 1024 ** 2))),
+                demo_store=demo_store)
         else:
             app.state.frames = service
         try:

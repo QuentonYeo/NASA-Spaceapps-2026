@@ -1,3 +1,4 @@
+import { fluxBounds, usableUncertainty } from '../measurementStats';
 import { useEffect, useRef, useState } from 'react';
 
 export interface LightCurvePoint {
@@ -6,6 +7,7 @@ export interface LightCurvePoint {
   detector: string;
   wavelengthUm: number;
   fluxMjy: number;
+  uncertaintyMjy?: number | null;
   pixels: {
     weight: number;
     native: [number, number][];
@@ -56,16 +58,11 @@ function groupLabel(group: WavelengthGroup) {
   return `${range} µm · ${group.detector} · ${group.dates} ${group.dates === 1 ? 'date' : 'dates'}`;
 }
 
-function FluxChart({ points, selectedId }: { points: LightCurvePoint[]; selectedId?: string }) {
+export function FluxChart({ points, selectedId }: { points: LightCurvePoint[]; selectedId?: string }) {
   const times = points.map(point => Date.parse(point.observedAtUtc));
   const t0 = times[0];
   const t1 = times[times.length - 1];
-  const fluxes = points.map(point => point.fluxMjy);
-  const min = Math.min(...fluxes);
-  const max = Math.max(...fluxes);
-  const padding = (max - min) * .08 || Math.max(1, Math.abs(max) * .08);
-  const low = min - padding;
-  const high = max + padding;
+  const [low, high] = fluxBounds(points.map(point => ({ fluxMjy: point.fluxMjy })));
   const x = (time: number) => t0 === t1 ? 345 : 74 + 542 * (time - t0) / (t1 - t0);
   const y = (flux: number) => 192 - 169 * (flux - low) / (high - low);
 
@@ -79,11 +76,16 @@ function FluxChart({ points, selectedId }: { points: LightCurvePoint[]; selected
     <text x="5" y="13">mJy</text>
     <text x="68" y="215">{dateLabel(t0)}</text>
     {t1 !== t0 && <text x="622" y="215" textAnchor="end">{dateLabel(t1)}</text>}
-    {points.map((point, index) => <circle key={point.frameId}
-      cx={x(times[index])} cy={y(point.fluxMjy)} r={point.frameId === selectedId ? 6 : 4}
-      className={point.frameId === selectedId ? 'selected' : undefined}>
-      <title>{point.observedAtUtc} · {numericLabel(point.fluxMjy)} mJy · {point.wavelengthUm.toFixed(3)} µm</title>
-    </circle>)}
+    {points.map((point, index) => {
+      const sigma = usableUncertainty(point.uncertaintyMjy);
+      const cx = x(times[index]);
+      const selected = point.frameId === selectedId;
+      return <g key={point.frameId}>
+        <circle cx={cx} cy={y(point.fluxMjy)} r={selected ? 6 : 4} className={selected ? 'selected' : undefined}>
+          <title>{`${point.observedAtUtc} | ${numericLabel(point.fluxMjy)} mJy | ${sigma == null ? "Uncertainty unavailable" : `+/- ${numericLabel(sigma)} mJy (1 sigma)`} | ${point.wavelengthUm.toFixed(3)} microns`}</title>
+        </circle>
+      </g>;
+    })}
   </svg>;
 }
 
@@ -166,6 +168,7 @@ export function LightCurve({ sequenceId, outerWings, selectedId, onSelect, onMea
           <FluxChart points={group.points} selectedId={selectedId} />
         </div>
         <p>The cyan overlay on the frame shows the pixels used for wing flux. The core is outside the measurement.</p>
+        <p>Statistical uncertainties from usable FITS variance include the background mean and remain available in point tooltips. Missing uncertainty is unavailable, not zero. Correlated noise and calibration systematics are excluded.</p>
         <p>Wing flux is a relative brightness check. Differences in focus, wavelength and detector response can also affect the values.</p>
         <details>
           <summary>Frame measurements</summary>

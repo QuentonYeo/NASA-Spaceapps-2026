@@ -14,6 +14,7 @@ import { vestaPosition } from './state/vestaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
 import { useAutoObservation } from './state/useAutoObservation';
 import { MovingCandidates } from './MovingCandidates';
+import { MovingCandidateAnalysis } from './MovingCandidateAnalysis';
 import { Home } from './Home';
 import { AlignedPreview } from './components/AlignedPreview';
 import { LightCurve } from './components/LightCurve';
@@ -72,10 +73,12 @@ function App() {
 
   const [inputs, setInputs] = useState(() => sequence.query
     ? { ra: String(sequence.query.ra), dec: String(sequence.query.dec), fov: String(sequence.query.fov) }
-    : fields[1].inputs);
+    : (fields.find(field => field.id === 'wise-0855') ?? fields[0]).inputs);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState(activeExample ? 'fit' : '4');
+  const [analysisRadius, setAnalysisRadius] = useState(2.5);
+  const [analysisRequest, setAnalysisRequest] = useState(0);
   const [tab, setTab] = useState('image');
   const [contrast, setContrast] = useState('shared');
   const [reviewContrast, setReviewContrast] = useState('auto');
@@ -139,6 +142,7 @@ function App() {
   const timelineFrames = activeTrack ? blinkFrames : ready;
   const timelineIndex = timelineFrames.findIndex((frame) => frame.id === visible?.id);
   const autoContrastSequence = activeTrack && reviewContrast === 'auto' ? sequence.page?.sequenceId : undefined;
+  const reviewRank = activeTrack ? motion!.candidates.findIndex((candidate) => candidate.id === activeTrack.id) + 1 : 0;
   function alignedAutoUrl(frame: Frame) {
     return autoContrastSequence && frame.scienceStatus === 'retained'
       ? `/api/frames/${encodeURIComponent(autoContrastSequence)}/frames/${encodeURIComponent(frame.id)}/aligned-auto.png`
@@ -205,6 +209,8 @@ function App() {
     const [first, ...remaining] = track.detections;
     resetBlink();
     setReviewId(track.id);
+    setAnalysisRequest(0);
+    setAnalysisRadius(2.5);
     setReviewContrast('auto');
     setSelectedId(first.frameId);
     setAppendedIds(remaining.map((point) => point.frameId));
@@ -212,9 +218,50 @@ function App() {
     setZoom('fit');
   }
 
+  function openCandidateAnalysis() {
+    setAnalysisRequest((request) => request + 1);
+    window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+
+  function viewStationarySpectrum() {
+    setTab('spectrum');
+    window.setTimeout(() => document.getElementById('stationary-region-spectrum')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+
+  function selectStationaryRegion() {
+    setBlinkMode(false);
+    setPlaying(false);
+    setTab('image');
+    window.setTimeout(() => document.getElementById('observation-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }
+
+  function viewMovingAnalysis() {
+    setTab('image');
+    if (activeTrack) {
+      const [first, ...remaining] = activeTrack.detections;
+      setSelectedId(first.frameId);
+      setAppendedIds(remaining.map(point => point.frameId));
+      setBlinkMode(true);
+      setPlaying(false);
+      setBlinkIndex(0);
+      window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    } else {
+      const panel = document.getElementById('auto-observation');
+      if (panel instanceof HTMLDetailsElement) panel.open = true;
+      window.setTimeout(() => panel?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }
+
+  function leaveCandidateReview() {
+    setBlinkMode(false);
+    resetBlink();
+    setTab('image');
+  }
+
   function selectFrame(id: string) {
     setSelectedId(id);
-    resetBlink();
+    if (!blinkMode && activeTrack) setPlaying(false);
+    else resetBlink();
   }
 
   const progress = showResults ? sequence.page?.progress : undefined;
@@ -295,6 +342,8 @@ function App() {
         IRSA releases searched: {sequence.query.collections.map(collection => collection.slice('spherex_'.length).toUpperCase()).join(' and ')}
       </p>}
       {sequence.notice && <p className="hint">{sequence.notice}</p>}
+      {sequence.page?.dataSource === "demo_cache" && <p className="hint">Prepared demo cache - observations loaded from local disk.</p>}
+      {mode === "explore" && sequence.page?.inventoryScope === "known_object" && <p className="hint">Showing the saved known-object exposures for this exact field. Additional archive observations may exist. <button className="text-button" onClick={reloadAnalysisField}>Search full archive field</button></p>}
       {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
       {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
       {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>Resume loading</button>}
@@ -310,7 +359,7 @@ function App() {
   );
 
   const autoObservation = (
-    showResults && sequence.query && <section className="auto-observation" aria-labelledby="auto-observation-heading">
+    showResults && sequence.query && <section id="auto-observation" className="auto-observation" aria-labelledby="auto-observation-heading">
       <div className="analysis-heading">
         <div>
           <h2 id="auto-observation-heading">Auto observation</h2>
@@ -411,18 +460,18 @@ function App() {
               onClick={() => showTimelineIndex(timelineIndex + 1)}>Next →</button>
           </div>
         </section>
-        <div ref={imageStage} className={blinkMode || brightnessPoint ? "image-stage aligned-stage" : "image-stage"} tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
+        <div id="observation-image" ref={imageStage} className={blinkMode || brightnessPoint ? "image-stage aligned-stage" : "image-stage"} tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
             event.preventDefault();
             showTimelineIndex(timelineIndex + (event.key === 'ArrowRight' ? 1 : -1));
           }}>
-          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} onReload={reloadAnalysisField} loading={sequence.busy} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
-            <AlignedPreview key={alignedAutoUrl(visible) ?? visible.id} autoUrl={alignedAutoUrl(visible)}
+            <AlignedPreview key={`preview:${alignedAutoUrl(visible) ?? visible.id}`} autoUrl={alignedAutoUrl(visible)}
               lockedUrl={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`}
               showFallback={!!autoContrastSequence} />
-            {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers key={visible.id} catalogue={gaia.catalogue}
+            {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers key={`gaia:${visible.id}`} catalogue={gaia.catalogue}
               query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
               side={visibleGrid.width} showLabels={gaiaLabels} showDetails={downloadComplete} onInspect={() => setPlaying(false)} />}
             {brightnessPoint && <BrightnessFootprint point={brightnessPoint} aligned />}
@@ -432,9 +481,13 @@ function App() {
             </svg>}
             {measured && <FrameMarker key={`candidate-${visible.id}`} className="motion-marker" label="Measured candidate position"
               kind="Motion candidate" enabled={downloadComplete} onInspect={() => setPlaying(false)}
+              clickHint="Click to view aperture measurements" onClickAction={openCandidateAnalysis}
               style={{ left: `${100 * measured.x / visibleGrid.width}%`, top: `${100 * measured.y / visibleGrid.height}%` }}>
               <span>Candidate</span>
             </FrameMarker>}
+            {measured && <svg className="candidate-aperture-overlay" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
+              <circle cx={measured.x} cy={measured.y} r={analysisRadius} />
+            </svg>}
             {trajectory && !activeTrack && <>
               <svg className="arosa-track" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
                 <polyline points={trajectory.path.map(({ x, y }) => `${x},${y}`).join(' ')} />
@@ -508,6 +561,13 @@ function App() {
             : 'Contrast stays fixed within a detector. Brightness can still change with wavelength.'
           : 'Each frame has its own brightness scale.') + ' Previews are unaligned.'}</p>
         </section>
+        {activeTrack && <section className="candidate-review-state" aria-label="Verify candidate">
+          <h3>Verify candidate {reviewRank}</h3>
+          <p>{activeTrack.detector} · {activeTrack.detections.length} measured positions · {activeTrack.displacementArcsec.toFixed(0)}″ over {activeTrack.elapsedHours.toFixed(1)} h.</p>
+          <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
+          <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
+        </section>}
+        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} automatic={motion?.measurements?.[activeTrack.id]} />}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">
@@ -595,15 +655,17 @@ function App() {
         </form>
         <section className="suggested-fields" aria-label="Suggested fields">
           <h3>Suggested fields</h3>
-          {fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
+          <p className="hint">Choose a known field, then select Start. Saved observations are available at these exact coordinates and field of view.</p>
+          <div className="suggested-field-grid">{fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
             <strong>{field.name}</strong><span>{field.reason}</span>
-          </button>)}
+            <span className="preset-cache">Saved observations available</span>
+          </button>)}</div>
         </section>
-        {blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={() => { setBlinkMode(false); resetBlink() }}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} />}
+        {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={selectStationaryRegion}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} onRegionUpdated={viewStationarySpectrum} />)}
       </details>}
-      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} />}
+      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={activeTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
     </div>
-    {mode === 'explore' && <ChannelMeasurements explorer={explorer} />}
+    {mode === 'explore' && <ChannelMeasurements explorer={explorer} open={tab === 'measurements'} />}
     {failed.length > 0 && <details className="panel failures"><summary>{failed.length} frames could not be loaded</summary><ul>{failed.map((frame) => <li key={frame.id}><strong>{frame.detector} · {frame.observedAtUtc}</strong><p>{frame.error?.message ?? 'Frame unavailable.'}</p></li>)}</ul></details>}
     <footer><span>Sifting Skies</span><span>NASA Space Apps 2026 · Archive data via backend</span></footer>
   </main>

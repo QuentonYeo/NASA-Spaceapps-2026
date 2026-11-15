@@ -3,9 +3,21 @@
 `frames.sqlite3` contains the 1,256 preloaded SPHEREx frames and their sequence
 metadata for all eight Known Objects presets. Git downloads it with the repo.
 
-Run the project's [first-time setup](../../README.md#first-time-setup), then use
-the commands below from the repository root. They use a separate writable
-database for the demo and leave the repository copy available for reuse.
+The backend now reads this database **read only by default**. Run the normal
+backend and frontend startup commands; selecting an exact preset region in Known
+Objects or Explore automatically reuses the saved frames and native FITS. No
+copy or frontend environment mode is needed. The native FITS are gzip-compressed
+inside `checkpoint_science`, and all 1,256 frames have them.
+
+Curated presets (Vesta, Arosa, M101 and Barnard's Star) contain selected exposures.
+Explore labels those subsets and offers **Search full archive field** for the full
+inventory. That live search reuses bundled FITS for matching exposure IDs and
+exact regions. Changed coordinates/FOV fall back to archive loading. Spectrum
+mosaic cubes and Gaia catalogues are separate data dependencies.
+
+The optional commands below retain the original setup for explicitly using a
+writable copy and fixed preloaded sequence IDs. They are unnecessary for normal
+startup with automatic bundle reuse.
 
 ## Backend terminal
 

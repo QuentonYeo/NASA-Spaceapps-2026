@@ -15,10 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class SearchCache:
-    def __init__(self, path: Path, max_bytes: int, ttl: int, *, science_max_bytes: int = 1024 ** 3):
+    def __init__(self, path: Path, max_bytes: int, ttl: int, *, science_max_bytes: int = 1024 ** 3, read_only: bool = False):
         self.path, self.max_bytes, self.ttl = path, max_bytes, ttl
         self.science_max_bytes = science_max_bytes
         self.lock = Lock()
+        self.read_only = read_only
+        if read_only:
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock, self.connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS checkpoints (
@@ -33,7 +36,8 @@ class SearchCache:
 
     def connect(self):
         # The caller closes each connection after its transaction.
-        connection = sqlite3.connect(self.path)
+        connection = (sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)
+                      if self.read_only else sqlite3.connect(self.path))
         connection.execute("PRAGMA foreign_keys = ON")
         return closing(connection)
 
@@ -61,11 +65,17 @@ class SearchCache:
         db.commit()
 
     def save(self, job):
+        if self.read_only:
+            raise ValueError("Bundled search cache is read-only")
         try:
             payload = gzip.compress(json.dumps({
                 "region": asdict(job.region), "status": job.status, "total": job.total,
                 "results": job.results, "scheduled": job.scheduled, "motion": job.motion,
                 "observation": job.observation if (job.observation or {}).get("status") == "completed" else None,
+                "gaia_catalogue": job.gaia_catalogue,
+                "data_source": job.data_source,
+                "inventory_scope": job.inventory_scope,
+                "requested_exposure_ids": job.requested_exposure_ids,
                 "exposures": [(asdict(exposure), visit) for exposure, visit in job.exposures],
                 "display_limits": [[*group, *limits] for group, limits in job.display_limits.items()],
             }, separators=(",", ":")).encode(), compresslevel=1)
@@ -104,6 +114,8 @@ class SearchCache:
             return Job(
                 sequence_id, Region(**data["region"]), finished=time.monotonic(),
                 status=data["status"], total=data["total"],
+                data_source=data.get("data_source", "archive"), inventory_scope=data.get("inventory_scope", "archive"), gaia_catalogue=data.get("gaia_catalogue"),
+                requested_exposure_ids=data.get("requested_exposure_ids"),
                 results=[{
                     **frame,
                     "scienceStatus": "retained" if frame["id"] in science else

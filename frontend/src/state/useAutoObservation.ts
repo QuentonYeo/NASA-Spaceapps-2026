@@ -17,7 +17,7 @@ export function useAutoObservation(sequenceId?: string) {
       let result = await fetchAutoObservation(sequenceId, signal, start);
       while (!signal.aborted) {
         setEntry({ id: sequenceId, result });
-        if (result.status !== 'running') return;
+        if (result.status !== 'running' && !Object.values(result.measurements ?? {}).some(entry => entry.status === 'queued' || entry.status === 'running')) return;
         await wait(1000, signal);
         result = await fetchAutoObservation(sequenceId, signal);
       }

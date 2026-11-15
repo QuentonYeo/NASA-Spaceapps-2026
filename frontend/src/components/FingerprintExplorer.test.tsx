@@ -53,3 +53,12 @@ it('keeps a sky aperture on a different native image before the mosaic spectrum 
   expect(updated).not.toContain('<polygon');
   expect(updated).toContain('Positioning selected sky region');
 });
+
+
+it('explains missing selection coordinates beside a preview-only native image', () => {
+  const preview = { ...frame('preview', 1), imageData: 'data:image/png;base64,test', grid: { width: 29, height: 29, orientation: 'native' }, scienceStatus: 'unavailable' } as Frame;
+  const html = renderToStaticMarkup(<RegionImage frame={preview} zoom="fit" explorer={explorer(null)} clickToSelect onReload={() => {}} />);
+  expect(html).toContain('aria-disabled="true"');
+  expect(html).toContain('This cached image has no selection coordinates');
+  expect(html).toContain('Reload field for selection');
+});

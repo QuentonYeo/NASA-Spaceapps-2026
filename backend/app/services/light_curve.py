@@ -82,8 +82,10 @@ def measure_exposure(cutout: bytes, region: Region, *, outer_wings: bool = False
 
         annulus = CircularAnnulus((x, y), r_in=background_radii[0], r_out=background_radii[1])
         sky = annulus.to_mask(method="center").to_image(data.shape) > 0
-        samples = data[sky & valid]
-        samples = sigma_clip(samples, sigma=3, maxiters=5).compressed()
+        background_pixels = sky & valid
+        clipped = sigma_clip(data[background_pixels], sigma=3, maxiters=5)
+        retained = ~np.ma.getmaskarray(clipped)
+        samples = clipped.compressed()
         if samples.size < 20:
             return None, "Insufficient background pixels"
 
@@ -95,7 +97,21 @@ def measure_exposure(cutout: bytes, region: Region, *, outer_wings: bool = False
         flux = float(np.dot(weights[source], data[source] - background) * factor)
         if not np.isfinite(flux):
             return None, "Invalid aperture flux"
+        uncertainty = None
+        if "VARIANCE" in hdus and hdus["VARIANCE"].shape == data.shape:
+            variance = np.asarray(hdus["VARIANCE"].data, dtype=float)
+            source_variance = variance[source]
+            sky_variance = variance[background_pixels][retained]
+            # Propagate the actual linear estimator, conditional on clipping.
+            if (np.isfinite(source_variance).all() and (source_variance > 0).all()
+                    and np.isfinite(sky_variance).all() and (sky_variance > 0).all()):
+                total = (np.sum(weights[source]**2 * source_variance)
+                         + weights[source].sum()**2 * sky_variance.sum() / samples.size**2)
+                estimate = float(np.sqrt(total) * factor)
+                if np.isfinite(estimate) and estimate > 0:
+                    uncertainty = estimate
         return {
+            "uncertaintyMjy": uncertainty,
             "fluxMjy": flux, "wavelengthUm": wavelength,
             "pixels": measured_pixels(weights, wcs, region),
         }, None

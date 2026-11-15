@@ -3,6 +3,8 @@ import type { Region, RegionSelection } from './regions';
 export type SpectralImageCollection = 'spherex_dr1' | 'spherex_qr3';
 
 export interface SkyQuery {
+  requestGroup?: string;
+  refresh?: boolean;
   ra: number; dec: number; fov: number;
   exposureIds?: string[];
   collections?: SpectralImageCollection[];
@@ -29,15 +31,36 @@ export interface MotionCandidate {
   id: string; detector: string; detections: MotionDetection[]; displacementArcsec: number;
   elapsedHours: number; residualPixels: number; score: number;
 }
+export interface MotionPhotometryRow {
+  frameId: string; observedAtUtc: string; detector: string; release: string; sourceFitsUrl?: string; detectionSnr?: number;
+  status: 'measured' | 'partial' | 'unavailable'; reason?: string;
+  ra?: number; dec?: number; pixelX?: number; pixelY?: number;
+  wavelengthUm?: number | null; bandwidthUm?: number | null;
+  fluxMjy?: number; uncertaintyMjy?: number | null; signalToNoise?: number | null;
+  backgroundMjySr?: number; radiusPixels?: number; apertureCoverage?: number;
+  aperturePixels?: number; backgroundPixels?: number; flagsOr?: number | null; quality?: string;
+}
+export interface MotionPhotometryResult {
+  candidateId: string; unit: 'mJy'; processingVersion: string; method: string; radiusPixels: number; measurements: MotionPhotometryRow[];
+}
 export interface MotionSearch {
   analyzedFrames: number; comparable: boolean; candidates: MotionCandidate[];
 }
 export interface ObservationAnalysis extends MotionSearch {
   status: 'idle' | 'running' | 'completed' | 'failed';
   readyFrames: number; availableFrames: number; processedFrames: number; error: string | null;
+  measurements?: Record<string, CandidateMeasurement>;
+}
+
+export interface CandidateMeasurement {
+  status: 'queued' | 'running' | 'completed' | 'failed';
+  result?: MotionPhotometryResult;
+  error?: string;
 }
 
 export interface SequencePage {
+  dataSource?: 'archive' | 'demo_cache';
+  inventoryScope?: 'archive' | 'known_object';
   sequenceId: string; status: 'queued' | 'discovering' | 'running' | 'awaiting_more' | 'completed' | 'partial' | 'failed';
   scheduledCount: number; remaining: number; batchSize: number;
   nextCursor: number; hasMore: boolean; pollAfterSeconds: number;
@@ -56,19 +79,20 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | Pick<RegionSelection, 'referenceFrameId' | 'circle'>,
-                          method = body ? 'POST' : 'GET'): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | Pick<RegionSelection, 'referenceFrameId' | 'circle'> | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET', timeoutMs = 20_000): Promise<T> {
   let response: Response;
+  const timeout = AbortSignal.timeout(timeoutMs);
   try {
     response = await fetch(url, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+      signal: AbortSignal.any([signal, timeout]),
     });
   } catch (error) {
     if (signal.aborted) throw error;
-    throw new RequestError('Cannot reach the backend. Check that it is running on port 8000.', true);
+    if (timeout.aborted) throw new RequestError('The backend request timed out. Archive loading may still be running; try again shortly.', true);
+    throw new RequestError('Cannot reach the backend. Check the server connection and API proxy.', true);
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
@@ -117,8 +141,17 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  const { ra, dec, fov, exposureIds, detector, findMovers, collections } = query;
-  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, collections });
+  const { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, refresh, collections } = query;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, requestGroup, collections, ...(refresh ? { refresh: true } : {}) });
+    } catch (error) {
+      // Only retry explicit rejections: a timed-out POST may already have created a job.
+      if (signal.aborted || !(error instanceof RequestError) || !error.retryable ||
+          ![429, 503].includes(error.status ?? 0) || attempt >= 3) throw error;
+      await wait(Math.min(10, Math.max(2 ** attempt, error.retryAfter)) * 1000, signal);
+    }
+  }
 }
 
 export function resolveSkyRegion(selection: RegionSelection, signal: AbortSignal): Promise<Region> {
@@ -149,4 +182,10 @@ export function getGaiaCatalogue(sequenceId: string, signal: AbortSignal) {
 export function fetchAutoObservation(sequenceId: string, signal: AbortSignal, start = false) {
   return request<ObservationAnalysis>(`/api/frames/${encodeURIComponent(sequenceId)}/auto-observation${start ? '?rerun=true' : ''}`,
     signal, undefined, start ? 'POST' : 'GET');
+}
+
+export function fetchMotionPhotometry(sequenceId: string, candidate: MotionCandidate, radiusPixels: number, signal: AbortSignal) {
+  return request<MotionPhotometryResult>(`/api/frames/${encodeURIComponent(sequenceId)}/motion-photometry`, signal, {
+    candidateId: candidate.id, radiusPixels,
+  }, 'POST', 300_000);
 }

@@ -1,8 +1,9 @@
 from app.services.native_regions import Aperture, PixelPosition, sky_aperture
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response
+from astropy.wcs import WcsError
 from app.domain.models import Region
-from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, ObservationAnalysis, SequencePage
+from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, MotionPhotometryQuery, ObservationAnalysis, SequencePage
 from app.services.interfaces import Frames
 from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus, NativeRegionQuery
 
@@ -58,8 +59,7 @@ def get_frames_service(request: Request) -> Frames:
 def start_frames(query: FrameQuery, response: Response,
                  service: Annotated[Frames, Depends(get_frames_service)]):
     result = service.start(Region(query.ra, query.dec, query.fov),
-                           exposure_ids=query.exposureIds, detector=query.detector, find_movers=query.findMovers,
-                           collections=query.collections)
+                           exposure_ids=query.exposureIds, detector=query.detector, find_movers=query.findMovers, refresh=query.refresh, request_group=query.requestGroup, collections=query.collections)
     response.headers["Location"] = result["pollUrl"]
     response.headers["Cache-Control"] = "no-store"
     return result
@@ -86,6 +86,16 @@ def observation_status(sequence_id: str, response: Response,
                        service: Annotated[Frames, Depends(get_frames_service)]):
     response.headers["Cache-Control"] = "no-store"
     return service.auto_observation(sequence_id)
+
+
+@router.post("/{sequence_id}/motion-photometry")
+def motion_photometry(sequence_id: str, query: MotionPhotometryQuery, request: Request, response: Response):
+    """Measure a candidate at its recorded positions in retained native frames."""
+    service = request.app.state.frames
+    job = service.jobs.get(sequence_id)
+    result = service.measure_candidate(job, query.candidateId, query.radiusPixels)
+    response.headers["Cache-Control"] = "no-store"
+    return result
 
 
 @router.post("/{sequence_id}/auto-observation", status_code=202, response_model=ObservationAnalysis)

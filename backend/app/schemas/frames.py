@@ -13,6 +13,8 @@ class FrameQuery(BaseModel):
         default=None, min_length=1, max_length=2,
         description="IRSA Wide Survey spectral image collections for this search.")
     findMovers: bool = False
+    refresh: bool = False
+    requestGroup: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class BatchQuery(BaseModel):
@@ -114,6 +116,12 @@ class MotionCandidate(BaseModel):
     score: float
 
 
+class MotionPhotometryQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    candidateId: str = Field(min_length=1, max_length=64)
+    radiusPixels: float = Field(default=2.5, ge=0.5, le=8)
+
+
 class MotionSearch(BaseModel):
     analyzedFrames: int
     comparable: bool
@@ -126,10 +134,13 @@ class ObservationAnalysis(MotionSearch):
     availableFrames: int
     processedFrames: int
     error: str | None
+    measurements: dict[str, dict] = Field(default_factory=dict)
 
 
 class SequencePage(BaseModel):
     sequenceId: str
+    dataSource: Literal["archive", "demo_cache"] = "archive"
+    inventoryScope: Literal["archive", "known_object"] = "archive"
     centerRaDeg: float
     centerDecDeg: float
     fovDeg: float

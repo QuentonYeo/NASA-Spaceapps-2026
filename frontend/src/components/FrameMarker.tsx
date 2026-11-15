@@ -9,10 +9,12 @@ interface Props {
   style: CSSProperties;
   enabled: boolean;
   onInspect: () => void;
+  onClickAction?: () => void;
+  clickHint?: string;
   children?: ReactNode;
 }
 
-export function FrameMarker({ label, kind, className, style, enabled, onInspect, children }: Props) {
+export function FrameMarker({ label, kind, className, style, enabled, onInspect, onClickAction, clickHint, children }: Props) {
   const id = useId();
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
 
@@ -53,14 +55,14 @@ export function FrameMarker({ label, kind, className, style, enabled, onInspect,
       onMouseLeave={(event) => { if (document.activeElement !== event.currentTarget) setAnchor(null); }}
       onFocus={(event) => inspect(event.currentTarget)}
       onBlur={() => setAnchor(null)}
-      onClick={(event) => inspect(event.currentTarget)}
+      onClick={(event) => { inspect(event.currentTarget); onClickAction?.(); }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') setAnchor(null);
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') event.stopPropagation();
       }}>{children}</button>
     {anchor && createPortal(<div id={id} role="tooltip" className="marker-details" style={{ width, left: left ?? 12, top: top ?? 12 }}>
       <strong>{label}</strong>
-      <small>Sample details</small>
+      <small>{clickHint ?? 'Sample details'}</small>
       <dl><div><dt>Type</dt><dd>{kind}</dd></div><div><dt>Review</dt><dd>Pending</dd></div></dl>
     </div>, document.body)}
   </>;
