@@ -19,7 +19,9 @@ export const examples = examplesByField.map(example => ({
   blinkIds: example.blinkIds.map(id => dr1 + id),
 }));
 
-export const fields = catalog.fields;
+export const fields = catalog.examples.map(example => ({
+  id: example.id, name: example.name, reason: example.purpose, inputs: example.inputs,
+}));
 
 
 export function preloadedValidationSequence(exampleId: string): string | undefined {

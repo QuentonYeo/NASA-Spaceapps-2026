@@ -61,7 +61,7 @@ function App() {
 
   const [inputs, setInputs] = useState(() => sequence.query
     ? { ra: String(sequence.query.ra), dec: String(sequence.query.dec), fov: String(sequence.query.fov) }
-    : fields[1].inputs);
+    : (fields.find(field => field.id === 'wise-0855') ?? fields[0]).inputs);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState(activeExample ? 'fit' : '4');
@@ -622,9 +622,11 @@ function App() {
         </form>
         {mode === 'explore' && <section className="suggested-fields" aria-label="Suggested fields">
           <h3>Suggested fields</h3>
-          {fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
+          <p className="hint">Choose a known field, then select Start. Saved observations are available at these exact coordinates and field of view.</p>
+          <div className="suggested-field-grid">{fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
             <strong>{field.name}</strong><span>{field.reason}</span>
-          </button>)}
+            <span className="preset-cache">Saved observations available</span>
+          </button>)}</div>
         </section>}
         {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={selectStationaryRegion}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} onRegionUpdated={viewStationarySpectrum} />)}
       </details>

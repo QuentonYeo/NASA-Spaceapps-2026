@@ -48,15 +48,15 @@ function FingerprintPlot({ channels, selected, choose, references, observationWa
     return `${i > 0 && channels[i-1].value !== null ? 'L' : 'M'}${x(c.wavelengthUm)} ${y(c.value)}`;
   }).join(' ');
   return <svg className="spectrum-plot" viewBox="0 0 490 335" role="img" aria-label="102-channel location fingerprint">
-    <path d="M65 30V265H460" fill="none" stroke="#91a1b5" />
-    <line x1="65" x2="460" y1={y(0)} y2={y(0)} stroke="#536273" strokeDasharray="3 4" />
+    <path d="M65 30V265H460" fill="none" stroke="var(--chart-axis)" />
+    <line x1="65" x2="460" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />
     {references.filter(r => r.wavelengthUm >= minX && r.wavelengthUm <= maxX).map(r => <g key={r.name}>
-      <line x1={x(r.wavelengthUm)} x2={x(r.wavelengthUm)} y1="30" y2="265" stroke="#f7bb77" opacity=".5" strokeDasharray="3 4" />
+      <line x1={x(r.wavelengthUm)} x2={x(r.wavelengthUm)} y1="30" y2="265" stroke="var(--warning)" opacity=".5" strokeDasharray="3 4" />
       <text transform={`translate(${x(r.wavelengthUm)-3} 43) rotate(-90)`} textAnchor="end">{r.name}<title>{`${r.name}: approximate reference at ${r.wavelengthUm} micrometres; not a detection`}</title></text>
     </g>)}
-    {observationWavelength != null && observationWavelength >= minX && observationWavelength <= maxX && <line x1={x(observationWavelength)} x2={x(observationWavelength)} y1="30" y2="265" stroke="#82c9ff" strokeWidth="2"><title>{`Displayed observation wavelength at query centre: ${observationWavelength.toFixed(3)} micrometres`}</title></line>}
-    <path d={path} fill="none" stroke="#a4e7d2" strokeWidth="1" />
-    {values.map(c => <circle key={c.channel} cx={x(c.wavelengthUm)} cy={y(c.value!)} r={c.channel === selected ? 5 : 2.5} fill="#a4e7d2" stroke={c.channel === selected ? 'white' : 'none'} role="button" tabIndex={0}
+    {observationWavelength != null && observationWavelength >= minX && observationWavelength <= maxX && <line x1={x(observationWavelength)} x2={x(observationWavelength)} y1="30" y2="265" stroke="var(--accent)" strokeWidth="2"><title>{`Displayed observation wavelength at query centre: ${observationWavelength.toFixed(3)} micrometres`}</title></line>}
+    <path d={path} fill="none" stroke="var(--accent)" strokeWidth="1" />
+    {values.map(c => <circle key={c.channel} cx={x(c.wavelengthUm)} cy={y(c.value!)} r={c.channel === selected ? 5 : 2.5} fill="var(--accent)" stroke={c.channel === selected ? 'white' : 'none'} role="button" tabIndex={0}
       aria-label={`Show channel ${c.channel}`} onClick={() => choose(c.channel)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(c.channel) } }}><title>{`Channel ${c.channel} · ${c.wavelengthUm.toFixed(3)} µm · ${format(c.value)} mJy · ${c.pixels} accepted pixels`}</title></circle>)}
     {[0,.5,1].map(t => <g key={t}><text x={x(minX+t*(maxX-minX))} y="286" textAnchor="middle">{format(minX+t*(maxX-minX))}</text><text x="60" y={y(minY+t*(maxY-minY))} textAnchor="end">{format(minY+t*(maxY-minY))}</text></g>)}
     <text x="260" y="317" textAnchor="middle">Observed wavelength (µm)</text>

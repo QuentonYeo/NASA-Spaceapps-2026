@@ -94,6 +94,7 @@
 </section>
 <footer>Project documentation for Sifting Skies.</footer>
 <p>The aligned preview and Gaia overlay use distinct React keys for each frame. Reusing a frame ID as the sibling key for both components left stale image elements in the viewer during frame switches. This stacked images vertically and stretched overlay coordinates, including the Vesta marker, across the enlarged container. Prepared demos exposed the problem quickly because cached Gaia data was immediately available. Blink switching must retain exactly one preview image and a square image container; cached and archive-backed frames use the same rendering rules.</p>
+<p>Frame-marker detail cards and contrast-recovery notices use the shared dark surface, neutral border, readable typography, and rounded card treatment. The visual identities of Gaia, known-object, and measured-candidate overlays remain unchanged. This theme update does not alter image grids, marker coordinates, playback, or frame eligibility.</p>
 </main>
 <p>Opening an Auto observation candidate keeps the shared sky grid and starts with per-frame contrast. Candidate review also offers locked detector contrast for brightness comparisons. See <a href="automatic-motion-search.html">Auto observation</a>.</p>
 </body>

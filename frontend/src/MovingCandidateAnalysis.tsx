@@ -15,11 +15,11 @@ function FluxTimePlot({ result }: { result: MotionPhotometryResult }) {
   const x = (time: number) => 42 + (time - t0) / Math.max(1, t1 - t0) * 380;
   const y = (flux: number) => 190 - (flux - f0) / Math.max(1e-9, f1 - f0) * 150;
   return <svg className="motion-flux-plot" viewBox="0 0 460 235" role="img" aria-label="Quick-look candidate aperture flux versus observation time">
-    <path d="M42 20V190H422" fill="none" stroke="#91a1b5" />
-    <line x1="42" x2="422" y1={y(0)} y2={y(0)} stroke="#536273" strokeDasharray="3 4" />
+    <path d="M42 20V190H422" fill="none" stroke="var(--chart-axis)" />
+    <line x1="42" x2="422" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />
     {rows.map((row, index) => <g key={row.frameId}>
-      {row.uncertaintyMjy != null && <line x1={x(times[index])} x2={x(times[index])} y1={y(fluxes[index] + row.uncertaintyMjy)} y2={y(fluxes[index] - row.uncertaintyMjy)} stroke="#a4e7d2" />}
-      <circle cx={x(times[index])} cy={y(fluxes[index])} r="4" fill={row.status === 'partial' ? '#f7bb77' : '#a4e7d2'}><title>{`${row.observedAtUtc}: ${number(row.fluxMjy)} mJy, ${number(row.wavelengthUm, 3)} µm`}</title></circle>
+      {row.uncertaintyMjy != null && <line x1={x(times[index])} x2={x(times[index])} y1={y(fluxes[index] + row.uncertaintyMjy)} y2={y(fluxes[index] - row.uncertaintyMjy)} stroke="var(--accent)" />}
+      <circle cx={x(times[index])} cy={y(fluxes[index])} r="4" fill={row.status === 'partial' ? 'var(--warning)' : 'var(--accent)'}><title>{`${row.observedAtUtc}: ${number(row.fluxMjy)} mJy, ${number(row.wavelengthUm, 3)} µm`}</title></circle>
     </g>)}
     <text x="230" y="220" textAnchor="middle">Observation time (UTC)</text>
     <text transform="translate(13 112) rotate(-90)" textAnchor="middle">Aperture flux (mJy)</text>
@@ -40,11 +40,11 @@ function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
   const x = (wave: number) => 52 + (wave - low) / (high - low) * 370;
   const y = (flux: number) => 190 - (flux - f0) / Math.max(1e-9, f1 - f0) * 150;
   return <svg className="motion-flux-plot" viewBox="0 0 460 235" role="img" aria-label="Sparse moving-candidate aperture flux samples versus local wavelength">
-    <path d="M52 20V190H422" fill="none" stroke="#91a1b5" />
-    <line x1="52" x2="422" y1={y(0)} y2={y(0)} stroke="#536273" strokeDasharray="3 4" />
+    <path d="M52 20V190H422" fill="none" stroke="var(--chart-axis)" />
+    <line x1="52" x2="422" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />
     {rows.map((row, index) => <g key={row.frameId}>
-      {row.uncertaintyMjy != null && <line x1={x(wavelengths[index])} x2={x(wavelengths[index])} y1={y(fluxes[index] + row.uncertaintyMjy)} y2={y(fluxes[index] - row.uncertaintyMjy)} stroke="#a4e7d2" />}
-      <circle cx={x(wavelengths[index])} cy={y(fluxes[index])} r="4" fill={row.status === 'partial' ? '#f7bb77' : '#a4e7d2'}><title>{`${number(row.wavelengthUm, 4)} µm at ${row.observedAtUtc}: ${number(row.fluxMjy)} mJy`}</title></circle>
+      {row.uncertaintyMjy != null && <line x1={x(wavelengths[index])} x2={x(wavelengths[index])} y1={y(fluxes[index] + row.uncertaintyMjy)} y2={y(fluxes[index] - row.uncertaintyMjy)} stroke="var(--accent)" />}
+      <circle cx={x(wavelengths[index])} cy={y(fluxes[index])} r="4" fill={row.status === 'partial' ? 'var(--warning)' : 'var(--accent)'}><title>{`${number(row.wavelengthUm, 4)} µm at ${row.observedAtUtc}: ${number(row.fluxMjy)} mJy`}</title></circle>
     </g>)}
     <text x="237" y="220" textAnchor="middle">Local wavelength (µm)</text>
     <text transform="translate(13 112) rotate(-90)" textAnchor="middle">Aperture flux (mJy)</text>
