@@ -76,6 +76,9 @@ Stop either process with Ctrl+C in its terminal.
 
 ## Try the viewer
 
+The [Known Objects frame cache](demo/known-objects/README.md) includes preloaded
+sequences for all eight home page presets.
+
 1. Keep the default WISE 0855 coordinates or choose the M101 tutorial preset.
 2. Select **Find observations**. RA, Dec and the square field-of-view side length
    are in degrees; for example, `0.05` degrees is 3 arcminutes.
