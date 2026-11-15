@@ -1270,3 +1270,32 @@ footer{
   pointer-events: none;
 }
 .saved-region-outline circle { fill: none; stroke: #74b8ff; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+
+/* Analysis workflows share one observation source and keep field controls alongside it. */
+.workflow-shell { max-width: 1800px; }
+.analysis-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.analysis-layout.has-sidebar { grid-template-columns: 280px minmax(0, 1fr); }
+.analysis-main, .observation-sidebar, #analysis-workspace { min-width: 0; }
+.observation-sidebar { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; scrollbar-gutter: stable; }
+.observation-sidebar .observation-settings { padding: 20px; }
+.observation-sidebar .observation-settings > summary { border: 0; padding-top: 0; color: var(--text-primary); font-size: 14px; font-weight: 600; cursor: pointer; }
+.observation-sidebar .controls h2 { font-size: 16px; margin: 20px 0 16px; }
+.observation-sidebar .suggested-field-grid { grid-template-columns: minmax(0, 1fr); }
+.observation-sidebar .suggested-fields h3 { font-size: 14px; }
+.observation-sidebar .suggested-field-grid .preset { padding: 12px; }
+.observation-sidebar .suggested-field-grid .preset strong { font-size: 13px; }
+.observation-sidebar .suggested-fields > .hint { margin-top: 8px; }
+.analysis-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; margin-bottom: 20px; border: 1px solid var(--border-subtle); border-radius: var(--radius-card); background: var(--surface-panel); }
+.analysis-tabs button { flex: 1; min-height: 44px; padding: 10px 16px; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.analysis-tabs button:hover { color: var(--text-primary); background: var(--surface-hover); }
+.analysis-tabs button[aria-selected="true"] { border-color: var(--border-control); background: var(--surface-selected); color: var(--text-primary); }
+.analysis-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 1000px) {
+  .analysis-layout.has-sidebar { grid-template-columns: 240px minmax(0, 1fr); gap: 16px; }
+  .observation-sidebar .observation-settings { padding: 16px; }
+}
+@media (max-width: 760px) {
+  .analysis-layout.has-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .observation-sidebar { position: static; max-height: none; }
+  .analysis-tabs button { padding-inline: 10px; }
+}

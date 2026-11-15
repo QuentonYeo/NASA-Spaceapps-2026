@@ -29,15 +29,15 @@ export function FingerprintControls({ explorer, frame, onRegionUpdated }: { expl
   </section>;
 }
 
-function FingerprintPlot({ channels, selected, choose, references, observationWavelength }: {
+function FingerprintPlot({ channels, selected, choose, references, observationWavelength, emptyMessage }: {
   observationWavelength?: number | null;
+  emptyMessage?: string;
   channels: Channel[]; selected: number; choose: (channel: number) => void;
   references: { name: string; wavelengthUm: number }[];
 }) {
   const values = channels.filter(c => c.value !== null);
-  if (!values.length) return <p className="hint">No usable channels at this position. Try a larger region or another location.</p>;
-  const minX = Math.min(...channels.map(c => c.minUm));
-  const maxX = Math.max(...channels.map(c => c.maxUm));
+  const minX = channels.length ? Math.min(...channels.map(c => c.minUm)) : 0;
+  const maxX = channels.length ? Math.max(...channels.map(c => c.maxUm)) : 1;
   const minY = Math.min(0, ...values.map(c => c.value!));
   const maxY = Math.max(0, ...values.map(c => c.value!));
   const pad = Math.max((maxY-minY)*.12, .001);
@@ -49,16 +49,17 @@ function FingerprintPlot({ channels, selected, choose, references, observationWa
   }).join(' ');
   return <svg className="spectrum-plot" viewBox="0 0 490 335" role="img" aria-label="102-channel location fingerprint">
     <path d="M65 30V265H460" fill="none" stroke="var(--chart-axis)" />
-    <line x1="65" x2="460" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />
-    {references.filter(r => r.wavelengthUm >= minX && r.wavelengthUm <= maxX).map(r => <g key={r.name}>
+    {!!values.length && <line x1="65" x2="460" y1={y(0)} y2={y(0)} stroke="var(--chart-grid)" strokeDasharray="3 4" />}
+    {!!values.length && references.filter(r => r.wavelengthUm >= minX && r.wavelengthUm <= maxX).map(r => <g key={r.name}>
       <line x1={x(r.wavelengthUm)} x2={x(r.wavelengthUm)} y1="30" y2="265" stroke="var(--warning)" opacity=".5" strokeDasharray="3 4" />
       <text transform={`translate(${x(r.wavelengthUm)-3} 43) rotate(-90)`} textAnchor="end">{r.name}<title>{`${r.name}: approximate reference at ${r.wavelengthUm} micrometres; not a detection`}</title></text>
     </g>)}
-    {observationWavelength != null && observationWavelength >= minX && observationWavelength <= maxX && <line x1={x(observationWavelength)} x2={x(observationWavelength)} y1="30" y2="265" stroke="var(--accent)" strokeWidth="2"><title>{`Displayed observation wavelength at query centre: ${observationWavelength.toFixed(3)} micrometres`}</title></line>}
+    {!!values.length && observationWavelength != null && observationWavelength >= minX && observationWavelength <= maxX && <line x1={x(observationWavelength)} x2={x(observationWavelength)} y1="30" y2="265" stroke="var(--accent)" strokeWidth="2"><title>{`Displayed observation wavelength at query centre: ${observationWavelength.toFixed(3)} micrometres`}</title></line>}
     <path d={path} fill="none" stroke="var(--accent)" strokeWidth="1" />
     {values.map(c => <circle key={c.channel} cx={x(c.wavelengthUm)} cy={y(c.value!)} r={c.channel === selected ? 5 : 2.5} fill="var(--accent)" stroke={c.channel === selected ? 'white' : 'none'} role="button" tabIndex={0}
       aria-label={`Show channel ${c.channel}`} onClick={() => choose(c.channel)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(c.channel) } }}><title>{`Channel ${c.channel} · ${c.wavelengthUm.toFixed(3)} µm · ${format(c.value)} mJy · ${c.pixels} accepted pixels`}</title></circle>)}
-    {[0,.5,1].map(t => <g key={t}><text x={x(minX+t*(maxX-minX))} y="286" textAnchor="middle">{format(minX+t*(maxX-minX))}</text><text x="60" y={y(minY+t*(maxY-minY))} textAnchor="end">{format(minY+t*(maxY-minY))}</text></g>)}
+    {!values.length && <text x="263" y="140" textAnchor="middle">{emptyMessage ?? "No usable channels at this position."}</text>}
+    {!!values.length && [0,.5,1].map(t => <g key={t}><text x={x(minX+t*(maxX-minX))} y="286" textAnchor="middle">{format(minX+t*(maxX-minX))}</text><text x="60" y={y(minY+t*(maxY-minY))} textAnchor="end">{format(minY+t*(maxY-minY))}</text></g>)}
     <text x="260" y="317" textAnchor="middle">Observed wavelength (µm)</text>
     <text transform="translate(14 150) rotate(-90)" textAnchor="middle">Background-subtracted flux (mJy)</text>
   </svg>;
@@ -76,17 +77,19 @@ export function FingerprintPanel({ explorer, frame, frames, onSelect, onSelectRe
   const total = explorer.status?.totalBytes;
   return <section id="stationary-region-spectrum" className="panel spectrum-panel fingerprint-panel" aria-label="Spectral composition explorer">
     <div className="section-heading"><h2>Region spectrum</h2><span className="tag">QUICK LOOK</span></div>
-    {!explorer.selection && <><p className="hint">Select a location within your FOV to inspect its wavelength channels and reference features.</p>
+    {!explorer.selection && <><p className="hint">Click a source on the main image to analyse its spectrum, or drag to select a region.</p>
       {onSelectRegion && <button className="text-button" onClick={onSelectRegion}>Select a stationary region in the image</button>}</>}
     {onExploreMoving && <p className="analysis-crosslink"><span>Looking for motion?</span><button className="text-button" onClick={onExploreMoving}>{movingLinkLabel ?? 'Go to moving-candidate analysis'}</button></p>}
     {explorer.busy && <div role="status" aria-live="polite"><p>{explorer.status?.message ?? 'Resolving selected sky location…'}</p>
       {downloaded != null && <><progress aria-label="Cube download" max={total ?? Math.max(downloaded,1)} value={downloaded} /><p>{(downloaded/1024**2).toFixed(1)} MiB{total ? ` / ${(total/1024**2).toFixed(1)} MiB` : ''}</p></>}
       <p className="hint">Reading the selected region across 102 channels. The loaded observations remain available while the mosaic spectrum loads.</p></div>}
     {explorer.error && <p className="error" role="alert">{explorer.error} <button onClick={explorer.retry}>Retry cube loading</button></p>}
+    <FingerprintPlot channels={result?.channels ?? []} selected={explorer.selectedChannel} choose={explorer.setChannel}
+      references={referencesEnabled ? result?.references ?? [] : []} observationWavelength={frame?.wavelengthUm}
+      emptyMessage={!explorer.selection ? 'Click the main image to analyse a spectrum.' : explorer.busy ? 'Loading spectrum...' : explorer.error ? 'Spectrum unavailable. Retry above.' : 'No usable channels. Try another region.'} />
     {result && <>
       <p role="status">{result.usableChannels} usable / {result.totalChannels} channels · fixed sky region</p>
       <p className="hint">Combined epochs · uncertainty unavailable · reference overlays are not chemical detections.</p>
-      <FingerprintPlot channels={result.channels} selected={explorer.selectedChannel} choose={explorer.setChannel} references={referencesEnabled ? result.references : []} observationWavelength={frame?.wavelengthUm} />
       <p className="hint">Background-subtracted aperture flux across combined epochs. Browsing observations keeps this sky region fixed.</p>
       <p className="hint observation-link">{frame ? <>Displayed observation: group {(frame.observationGroupId ?? frame.visit) + 1} · {frame.wavelengthUm?.toFixed(3) ?? 'unknown'} µm at query centre (blue marker).</> : 'Load observations to link them to this spectrum.'}</p>
       <label>Channel<input aria-label="Spectral channel" disabled={!result.usableChannels} type="range" min="1" max="102" value={explorer.selectedChannel} onChange={e => explorer.setChannel(Number(e.target.value))} /></label>
