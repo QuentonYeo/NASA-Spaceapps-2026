@@ -508,7 +508,7 @@ function App() {
                 </button>
                 <label className="timeline-speed">Speed
                   <select aria-label="Timeline autoplay speed" value={playbackSpeed} onChange={event => setPlaybackSpeed(Number(event.target.value))}>
-                    <option value={1200}>Slow ? 1.2 s</option><option value={650}>Medium ? 0.65 s</option><option value={250}>Fast ? 0.25 s</option>
+                    <option value={1200}>Slow 1.2 s</option><option value={650}>Medium 0.65 s</option><option value={250}>Fast 0.25 s</option>
                   </select>
                 </label>
               </>}

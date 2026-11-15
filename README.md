@@ -1,9 +1,27 @@
 # Sifting Skies
 
 NASA Space Apps 2026: [Planet X and SPHEREx](https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/).
-Enter a sky location and browse SPHEREx observations. The Python backend discovers
-exposures, retrieves cutouts and renders previews. The React frontend displays the
-returned images and polls for progress.
+Explore SPHEREx infrared observations to compare the same patch of sky across dates,
+review possible moving objects, and measure selected sources. The Python backend
+finds observations, retrieves FITS cutouts and runs measurements; the React frontend
+provides the image viewer and analysis tools.
+
+## What you can do
+
+Start at Home and choose one of the app's workflows:
+
+| Workflow | What it does |
+| --- | --- |
+| **Validate a known object** | Open curated examples, including Vesta, Arosa, M101 and Barnard's Star. Compare exposures with aligned blinking, Gaia reference stars and available object overlays. RW Aurigae and R Draconis also have a **Brightness over time** stellar measurement. |
+| **Explore for movement** | Search by sky coordinates and field size, optionally filter by detector, then review exposures as they arrive. Use the timeline and autoplay to browse the sequence. |
+| **Static analysis** | Select a stationary sky region on a native image and view its 102-channel mosaic spectrum and channel measurements. Save a selected region as a Known Object in this browser. |
+| **Object detection & measurements** | Run Auto observation on retained FITS exposures to rank possible moving tracks. Review a candidate's supporting frames, measure its moving-position aperture flux, and inspect the automated measurement summary and pairwise flux comparisons. |
+
+The Static analysis and Object detection & measurements views share the same loaded
+frames. A moving-candidate flux-versus-wavelength plot is a sparse set of per-exposure
+measurements; it is not a reconstructed spectrum. The stationary region spectrum is a
+separate 102-channel mosaic product. See the [feature guides](features/viewer-workflows.html)
+for more details and limitations.
 
 ## Prerequisites
 
@@ -14,70 +32,50 @@ returned images and polls for progress.
 Docker, AWS credentials and manual Python virtual-environment activation are not required.
 Run the commands below from the repository root unless a different directory is shown.
 
-## First-time setup
+## Quick start
+
+Requirements: Python 3.13 or newer, [uv](https://docs.astral.sh/uv/), and Node.js
+22.12 or newer with npm. Internet access is needed to install dependencies and for
+live archive requests. Docker and AWS credentials are not required. Run these from
+the repository root:
 
 ```powershell
-cd backend
-uv sync
-cd ../frontend
-npm ci
+cd backend; uv sync
+cd ../frontend; npm ci
 ```
 
-For browser tests, also install Chromium once from `frontend/`:
-
-```powershell
-npx playwright install chromium
-```
-
-## Run locally
-
-Use two terminals, both starting at the repository root.
-
-**Terminal 1 - backend:**
-
-```powershell
-cd backend
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-The backend defaults to IRSA cutouts. To try S3 range reads instead, set the provider
-before starting the server. S3 access is anonymous; discovery still uses IRSA.
-
-PowerShell:
-
-```powershell
-cd backend
-$env:CUTOUT_PROVIDER = "s3"
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-macOS/Linux shell:
+Start the backend and frontend in separate terminals. Backend (from the repository
+root):
 
 ```sh
 cd backend
-CUTOUT_PROVIDER=s3 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Use `CUTOUT_PROVIDER=irsa` to switch back. Restart the backend after changing
-configuration. Additional settings, including batch size and concurrency, are
-listed in [backend/README.md](backend/README.md).
+Frontend (from the repository root):
 
-**Terminal 2 - frontend:**
-
-```powershell
+```sh
 cd frontend
 npm run dev
 ```
 
-Open the Local URL printed by Vite, normally **http://localhost:5173**.
-The frontend development server proxies `/api` to `http://127.0.0.1:8000`.
-API documentation is available at **http://127.0.0.1:8000/docs**.
-Stop either process with Ctrl+C in its terminal.
+Open **http://localhost:5173**. Vite proxies API requests to the backend at
+**http://127.0.0.1:8000**; interactive API documentation is at
+**http://127.0.0.1:8000/docs**. Stop either server with Ctrl+C.
+
+The backend uses IRSA cutouts by default. An optional anonymous S3 range-read
+provider is available with `CUTOUT_PROVIDER=s3` (PowerShell:
+`$env:CUTOUT_PROVIDER = "s3"`). Discovery still uses IRSA. Restart the backend after
+changing this setting. More backend settings are in
+[backend/README.md](backend/README.md).
 
 ## Try the viewer
 
-The [Known Objects frame cache](demo/known-objects/README.md) includes preloaded
-sequences for all eight home page presets.
+The [Known Objects frame cache](demo/known-objects/README.md) includes prepared
+sequences for the Home examples. Demo and spectrum cache data are packaged in the
+repository and connected/restored by the backend automatically; no cache setup script
+is needed for normal app startup. Uncached observations, tiles or ranges may still
+require internet access.
 
 1. Keep the default WISE 0855 coordinates or choose the M101 tutorial preset.
 2. Select **Find observations**. RA, Dec and the square field-of-view side length
