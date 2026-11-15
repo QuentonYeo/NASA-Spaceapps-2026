@@ -209,6 +209,29 @@ function App() {
     window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 
+  function viewStationarySpectrum() {
+    setTab('spectrum');
+    window.setTimeout(() => document.getElementById('stationary-region-spectrum')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+
+  function selectStationaryRegion() {
+    setBlinkMode(false);
+    resetBlink();
+    setTab('image');
+    window.setTimeout(() => document.getElementById('observation-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+  }
+
+  function viewMovingAnalysis() {
+    setTab('image');
+    if (activeTrack) {
+      window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    } else {
+      const panel = document.getElementById('auto-observation');
+      if (panel instanceof HTMLDetailsElement) panel.open = true;
+      window.setTimeout(() => panel?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    }
+  }
+
   function leaveCandidateReview() {
     setBlinkMode(false);
     resetBlink();
@@ -349,7 +372,7 @@ function App() {
           {sequence.page?.status === 'completed' && progress?.total === 0 && <p>No observations cover this location.</p>}
         </div>}
         </section>
-        {showResults && sequence.query && <section className="auto-observation" aria-labelledby="auto-observation-heading">
+        {showResults && sequence.query && <section id="auto-observation" className="auto-observation" aria-labelledby="auto-observation-heading">
           <div className="section-heading">
             <h3 id="auto-observation-heading">Auto observation</h3>
             <button className="primary" disabled={!canAnalyze || observation.pending ||
@@ -398,7 +421,7 @@ function App() {
               move(index + (event.key === 'ArrowRight' ? 1 : -1));
             }
           }}>
-          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {mode === 'explore' && !blinkMode && selected ? <div id="observation-image"><RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} /></div> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
             <AlignedPreview key={alignedAutoUrl(visible) ?? visible.id} autoUrl={alignedAutoUrl(visible)}
               lockedUrl={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`}
@@ -489,7 +512,7 @@ function App() {
           <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
           <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
         </section>}
-        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} />}
+        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} autoMeasureRequest={analysisRequest} onViewStationarySpectrum={viewStationarySpectrum} />}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">
@@ -593,11 +616,11 @@ function App() {
             <strong>{field.name}</strong><span>{field.reason}</span>
           </button>)}
         </section>}
-        {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={() => { setBlinkMode(false); resetBlink() }}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} />)}
+        {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={selectStationaryRegion}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} onRegionUpdated={viewStationarySpectrum} />)}
       </details>
-      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} />}
+      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={activeTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
     </div>
-    {mode === 'explore' && <ChannelMeasurements explorer={explorer} />}
+    {mode === 'explore' && <ChannelMeasurements explorer={explorer} open={tab === 'measurements'} />}
     {failed.length > 0 && <details className="panel failures"><summary>{failed.length} frames could not be loaded</summary><ul>{failed.map((frame) => <li key={frame.id}><strong>{frame.detector} · {frame.observedAtUtc}</strong><p>{frame.error?.message ?? 'Frame unavailable.'}</p></li>)}</ul></details>}
     <footer><span>Sifting Skies</span><span>NASA Space Apps 2026 · Archive data via backend</span></footer>
   </main>

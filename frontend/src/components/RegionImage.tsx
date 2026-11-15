@@ -6,7 +6,7 @@ import type { Circle, Region } from '../api/regions';
 import type { useFingerprint } from '../state/useFingerprint';
 
 type RegionExplorer = Pick<ReturnType<typeof useFingerprint>, 'selection' | 'commit'> & { result: { region: Region } | null; region?: Region };
-export function RegionImage({ frame, zoom, explorer, sequenceId, overlay, showBackground = true, clickToSelect = !showBackground }: { frame: Frame; zoom: string; explorer: RegionExplorer; sequenceId?: string; overlay?: ReactNode; showBackground?: boolean; clickToSelect?: boolean }) {
+export function RegionImage({ frame, zoom, explorer, sequenceId, overlay, showBackground = true, clickToSelect = !showBackground, onRegionSelected }: { frame: Frame; zoom: string; explorer: RegionExplorer; sequenceId?: string; overlay?: ReactNode; showBackground?: boolean; clickToSelect?: boolean; onRegionSelected?: () => void }) {
   const width = frame.grid?.width, height = frame.grid?.height;
   const [draft, setDraft] = useState<Circle | null>(null);
   const start = useRef<Circle | null>(null);
@@ -35,7 +35,7 @@ export function RegionImage({ frame, zoom, explorer, sequenceId, overlay, showBa
     {width && height && <svg viewBox={`0 0 ${width} ${height}`} aria-label="Draw circular region on native image" role="img"
       onPointerDown={e => { if (e.button !== 0 || (frame.scienceStatus && frame.scienceStatus !== 'retained')) return; e.currentTarget.setPointerCapture(e.pointerId); const p = { ...point(e), radiusPixels: 0 }; start.current = p; setDraft(p) }}
       onPointerMove={e => { if (start.current) { const p = point(e); setDraft({ ...start.current, radiusPixels: Math.hypot(p.x - start.current.x, p.y - start.current.y) }) } }}
-      onPointerUp={e => { if (!start.current) return; const p = point(e); const c = { ...start.current, radiusPixels: Math.hypot(p.x - start.current.x, p.y - start.current.y) }; start.current = null; setDraft(null); if (c.radiusPixels >= .1) explorer.commit(frame.id, c); else if (clickToSelect) explorer.commit(frame.id, { ...c, radiusPixels: 2 }) }}
+      onPointerUp={e => { if (!start.current) return; const p = point(e); const c = { ...start.current, radiusPixels: Math.hypot(p.x - start.current.x, p.y - start.current.y) }; start.current = null; setDraft(null); if (c.radiusPixels >= .1) { explorer.commit(frame.id, c); onRegionSelected?.() } else if (clickToSelect) { explorer.commit(frame.id, { ...c, radiusPixels: 2 }); onRegionSelected?.() } }}
       onPointerCancel={() => { start.current = null; setDraft(null) }}>
       {circle && (showBackground ? [circle.radiusPixels, circle.innerRadiusPixels ?? circle.radiusPixels * 2, circle.outerRadiusPixels ?? circle.radiusPixels * 3] : [circle.radiusPixels]).map((r, i) => <circle key={i} cx={circle.x + .5} cy={circle.y + .5} r={r} className={i ? 'annulus' : 'aperture'} />)}
       {!draft && !reference && rings?.slice(0, showBackground ? 3 : 1).map((ring, i) => <polygon key={i} points={ring.map(p => p.join(',')).join(' ')} className={i ? 'annulus' : 'aperture'} />)}

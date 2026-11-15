@@ -7,7 +7,7 @@ import './FingerprintExplorer.css';
 type Explorer = ReturnType<typeof useFingerprint>;
 const format = (n: number | null) => n == null ? 'Unavailable' : n.toPrecision(4);
 
-export function FingerprintControls({ explorer, frame }: { explorer: Explorer; frame?: Frame }) {
+export function FingerprintControls({ explorer, frame, onRegionUpdated }: { explorer: Explorer; frame?: Frame; onRegionUpdated?: () => void }) {
   const unavailable = !frame?.grid || (!!frame.scienceStatus && frame.scienceStatus !== 'retained');
   const [inner, setInner] = useState(explorer.selection?.circle.innerRadiusPixels ?? (explorer.selection?.circle.radiusPixels ?? 2)*2);
   const [outer, setOuter] = useState(explorer.selection?.circle.outerRadiusPixels ?? (explorer.selection?.circle.radiusPixels ?? 2)*3);
@@ -15,7 +15,7 @@ export function FingerprintControls({ explorer, frame }: { explorer: Explorer; f
   const validRadii = [radius,inner,outer].every(Number.isFinite) && radius > 0 && inner > radius && outer > inner;
   return <section className="region-controls"><h2>Select a sky region</h2>
     <p className="hint">Click a source in the native FOV image, or drag a circle for an extended region. The selection stays at the same sky location across 102 cube channels.</p>
-    <form onSubmit={e => { e.preventDefault(); if (explorer.selection && validRadii) explorer.commit(explorer.selection.referenceFrameId, { ...explorer.selection.circle, radiusPixels: radius, innerRadiusPixels: inner, outerRadiusPixels: outer }) }}>
+    <form onSubmit={e => { e.preventDefault(); if (explorer.selection && validRadii) { explorer.commit(explorer.selection.referenceFrameId, { ...explorer.selection.circle, radiusPixels: radius, innerRadiusPixels: inner, outerRadiusPixels: outer }); onRegionUpdated?.() } }}>
       <label>Selection radius (native image pixels)<input aria-label="Selection radius" disabled={!explorer.selection} type="number" required min="0.1" step="any" value={Number.isFinite(radius) ? radius : ''} onChange={e => setRadius(e.target.value === '' ? NaN : Number(e.target.value))} /></label>
       <label>Background inner radius (native pixels)<input aria-label="Background inner radius" disabled={!explorer.selection} type="number" required min={radius+.01} step="any" value={Number.isFinite(inner) ? inner : ''} onChange={e => setInner(e.target.value === '' ? NaN : Number(e.target.value))} /></label>
       <label>Background outer radius (native pixels)<input aria-label="Background outer radius" disabled={!explorer.selection} type="number" required min={inner+.01} step="any" value={Number.isFinite(outer) ? outer : ''} onChange={e => setOuter(e.target.value === '' ? NaN : Number(e.target.value))} /></label>
@@ -64,17 +64,21 @@ function FingerprintPlot({ channels, selected, choose, references, observationWa
   </svg>;
 }
 
-export function FingerprintPanel({ explorer, frame, frames, onSelect }: {
+export function FingerprintPanel({ explorer, frame, frames, onSelect, onSelectRegion, onExploreMoving, movingLinkLabel }: {
   explorer: Explorer; frame?: Frame; frames: Frame[]; onSelect: (id: string) => void;
+  onSelectRegion?: () => void; onExploreMoving?: () => void;
+  movingLinkLabel?: string;
 }) {
   const [referencesEnabled, setReferencesEnabled] = useState(true);
   const result = explorer.result;
   const channel = result?.channels.find(c => c.channel === explorer.selectedChannel);
   const downloaded = explorer.status?.downloadedBytes;
   const total = explorer.status?.totalBytes;
-  return <section className="panel spectrum-panel fingerprint-panel" aria-label="Spectral composition explorer">
+  return <section id="stationary-region-spectrum" className="panel spectrum-panel fingerprint-panel" aria-label="Spectral composition explorer">
     <div className="section-heading"><h2>Region spectrum</h2><span className="tag">QUICK LOOK</span></div>
-    {!explorer.selection && <p className="hint">Select a location within your FOV to inspect its wavelength channels and reference features.</p>}
+    {!explorer.selection && <><p className="hint">Select a location within your FOV to inspect its wavelength channels and reference features.</p>
+      {onSelectRegion && <button className="text-button" onClick={onSelectRegion}>Select a stationary region in the image</button>}</>}
+    {onExploreMoving && <p className="analysis-crosslink"><span>Looking for motion?</span><button className="text-button" onClick={onExploreMoving}>{movingLinkLabel ?? 'Go to moving-candidate analysis'}</button></p>}
     {explorer.busy && <div role="status" aria-live="polite"><p>{explorer.status?.message ?? 'Resolving selected sky location…'}</p>
       {downloaded != null && <><progress aria-label="Cube download" max={total ?? Math.max(downloaded,1)} value={downloaded} /><p>{(downloaded/1024**2).toFixed(1)} MiB{total ? ` / ${(total/1024**2).toFixed(1)} MiB` : ''}</p></>}
       <p className="hint">Reading the selected region across 102 channels. The loaded observations remain available while the mosaic spectrum loads.</p></div>}
@@ -101,7 +105,7 @@ export function FingerprintPanel({ explorer, frame, frames, onSelect }: {
   </section>;
 }
 
-export function ChannelMeasurements({ explorer }: { explorer: Explorer }) {
+export function ChannelMeasurements({ explorer, open = false }: { explorer: Explorer; open?: boolean }) {
   const result = explorer.result;
   function download() {
     if (!result) return;
@@ -110,7 +114,8 @@ export function ChannelMeasurements({ explorer }: { explorer: Explorer }) {
     const url = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
     const a = document.createElement('a'); a.href=url; a.download='spherex-location-channels.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
   }
-  return <details className="panel measurements"><summary>Channel measurements {result ? `(${result.totalChannels} slots)` : ''}</summary>
+  return <details className="panel measurements" open={open}><summary>Channel measurements {result ? `(${result.totalChannels} slots)` : ''}</summary>
+    {!result && <p className="hint">Choose a stationary sky region in the Spectrum view to load channel measurements.</p>}
     {result && <><button onClick={download}>Export channel CSV</button><p className="hint">Fractional aperture sum minus a 3-sigma-clipped annulus background, converted to mJy. No uncertainty is supplied by this cube; missing values remain empty.</p></>}
     <div className="table-scroll"><table><caption>Location-based channels, not one point per exposure</caption><thead><tr>{['Channel','Detector / subchannel','Wavelength (µm)','Channel edges (µm)','Flux (mJy)','Pixels / coverage','Background pixels / coverage','Background (mJy)','Flags OR','Quality'].map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{result?.channels.map(c => <tr key={c.channel} aria-selected={c.channel === explorer.selectedChannel}><td><button disabled={c.value === null} onClick={() => explorer.setChannel(c.channel)}>{c.channel}</button></td><td>{c.detector} / {c.subchannel}</td><td>{format(c.wavelengthUm)}</td><td>{format(c.minUm)}–{format(c.maxUm)}</td><td>{format(c.value)}</td><td>{c.pixels} / {Math.round(c.coverage*100)}%</td><td>{c.backgroundPixels} / {Math.round(c.backgroundCoverage*100)}%</td><td>{format(c.backgroundFluxMjy)}</td><td>{c.flagsOr}</td><td>{c.reason || 'Quick-look; uncertainty unavailable'}</td></tr>)}</tbody></table></div>
   </details>;

@@ -975,6 +975,16 @@ footer{
 .frame-settings > summary { margin-bottom: 12px; }
 .observation-settings > summary { margin-bottom: 10px; }
 
+.analysis-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.analysis-panel-heading h4 { margin: 0; }
+.analysis-crosslink { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; padding-top: 8px; border-top: 1px solid #293647; }
+.analysis-crosslink span { color: #acbbce; font-size: 11px; }
+
+@media (max-width: 620px) {
+  main[data-tab="spectrum"] .observation-settings,
+  main[data-tab="measurements"] .observation-settings { display: none; }
+}
+
 .frame-marker-trigger {
   padding: 0;
   background: transparent;

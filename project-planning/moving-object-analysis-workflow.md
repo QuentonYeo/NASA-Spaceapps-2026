@@ -34,17 +34,18 @@ The stationary mosaic result must not be described as a spectrum of a moving obj
 
 Detect, Verify, and Analyze are workflow stages inside the existing **Explore** page; they are not three new global navigation tabs. **Validate** remains the separate known-object workflow.
 
-- **Desktop:** the left column holds field search and native region controls; the center column holds Auto observation or the Verify summary, the image/blink controls and comparison table, then moving-candidate analysis; the right column keeps the stationary 102-channel Region spectrum.
-- **Mobile:** the existing Image, Spectrum, and Measurements tabs remain. Candidate analysis is part of the image/viewer column, below the blink comparison, while the stationary mosaic spectrum remains under Spectrum.
-- Selecting a candidate changes the center column into Verify. **Measure candidate** opens results inline below the blink review; it does not navigate away or replace the stationary spectrum panel.
+- **Desktop:** Explore uses a full-width vertical workspace. The viewer presents the timeline, image/blink controls, frame metadata and comparison table; Verify measurements follow below. Observation settings, stationary region controls and the 102-channel Region spectrum remain available in the same page, followed by the channel table.
+- **Mobile:** Image, Spectrum and Measurements tabs switch between the viewer/Verify workflow, the stationary mosaic plot, and its channel table. The tabs are hidden on desktop. Selecting or updating a stationary sky region opens Spectrum.
+- Selecting a candidate enters Verify in the viewer. The moving-candidate panel stays inline below blink review. Links between the moving-target panel and stationary-region spectrum make the two targets reachable without merging their apertures or results.
 
-Keep this layout for the next iteration. Improve the inline relationship and responsive access before considering a separate Analyze route or replacing the existing navigation.
+Keep this layout. The inline relationship and responsive access are implemented; gather user feedback before considering a separate Analyze route or replacing the existing navigation.
 
 ## Delivery status
 
 - **Stage 1 — Candidate Verify handoff: implemented for user review.** Candidate selection is labelled Verify, identifies the selected candidate and blink position, and provides a return to native observations. Validate remains clearly labelled for prepared examples. This stage does not add new measurements.
 - **Stage 2 — Moving-candidate quick-look: implemented for user review.** Verify can measure aperture flux at each detected position in retained native FITS frames and display flux-versus-time and sparse flux-versus-local-wavelength plots, a measurement table, and CSV export. See the limitations and measurement semantics below.
-- **Next — Known-object path search and advanced methods:** begin after the user reviews the first two stages.
+- **Stage 3 — Analysis navigation and responsive layout: implemented for user review.** Cross-links move between moving-candidate measurements and the separate stationary-region spectrum. Mobile Image, Spectrum and Measurements tabs switch the workspace view; region selection opens the spectrum.
+- **Next — Known-object path search and advanced methods:** begin after the user reviews the first three stages.
 
 ## Proposed user journey
 
@@ -69,7 +70,7 @@ The marker is the measured location. If an ephemeris is available, draw the pred
 
 ### 3. Analyze
 
-Selecting **Measure candidate** carries the backend candidate ID into the inline analysis panel below the blink review. Each record is tied to the frame ID and backend-retained candidate position in that frame. Keep the observation image and comparison table visible above the measurements, and keep the stationary mosaic spectrum in its separate right-hand panel.
+Selecting **Measure candidate** carries the backend candidate ID into the inline analysis panel below the blink review. Each record is tied to the frame ID and backend-retained candidate position in that frame. Keep the observation image and comparison table visible above the measurements, and keep the stationary mosaic spectrum in its separate section on the Explore page.
 
 #### Moving-candidate analysis
 
@@ -92,7 +93,7 @@ Begin with aperture photometry and local background as an explicitly labelled qu
 
 #### Stationary-region spectrum
 
-Keep the current region selector and 102-channel mosaic spectrum in the right-hand spectrum panel as **Stationary sky region** analysis. Keep its existing fixed-sky behavior, combined-epoch caveats, and channel navigation. Selecting a moving candidate must not silently move this aperture or relabel the mosaic output as moving-object analysis.
+Keep the current region selector and 102-channel mosaic spectrum in the Explore page as **Stationary sky region** analysis. Keep its existing fixed-sky behavior, combined-epoch caveats, and channel navigation. Selecting a moving candidate must not silently move this aperture or relabel the mosaic output as moving-object analysis.
 
 ## Data and processing design
 
@@ -146,11 +147,12 @@ Use these as product and workflow references, not as evidence that their instrum
 
 ### Phase 3 — Stationary spectrum placement and analysis chooser
 
-- Refine the inline center-column panel so **Moving candidate** analysis stays attached to the blinked target and does not push the key review controls out of reach.
-- Keep **Stationary sky region** spectrum and channel measurements in the existing right-hand panel and mobile Spectrum tab.
+- Keep **Moving candidate** analysis inline under the full-width viewer and comparison table, with clear navigation to the stationary spectrum.
+- Keep **Stationary sky region** spectrum and channel measurements in the same vertical Explore page; on mobile, expose them through Spectrum and Measurements tabs.
 - Add concise cross-links between the two analysis panels without combining their data or aperture state.
-- Decide from user testing whether any additional analysis chooser is needed; the current desktop side-by-side layout already exposes both types.
+- Provide cross-links and responsive tabs without combining the two measurement targets or aperture states.
 
+**Stage 3 implementation checkpoint:** verify the spectrum link from moving-candidate analysis and the candidate link from the stationary spectrum. On mobile, confirm the tabs expose image region selection, the spectrum plot, and its measurements table; selecting or updating a region should open Spectrum.
 **Exit:** users can access both analyses in the current layout and can tell at a glance whether measurements follow a moving candidate or remain fixed on the sky.
 
 ### Phase 4 — Known-object archive search and advanced methods

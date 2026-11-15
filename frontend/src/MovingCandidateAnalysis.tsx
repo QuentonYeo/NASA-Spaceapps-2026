@@ -54,8 +54,8 @@ function FluxWavelengthPlot({ result }: { result: MotionPhotometryResult }) {
   </svg>;
 }
 
-export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange, autoMeasureRequest = 0 }: {
-  sequenceId: string; candidate: MotionCandidate; radius: number; onRadiusChange: (radius: number) => void; autoMeasureRequest?: number;
+export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiusChange, autoMeasureRequest = 0, onViewStationarySpectrum }: {
+  sequenceId: string; candidate: MotionCandidate; radius: number; onRadiusChange: (radius: number) => void; autoMeasureRequest?: number; onViewStationarySpectrum?: () => void;
 }) {
   const [result, setResult] = useState<MotionPhotometryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -95,7 +95,7 @@ export function MovingCandidateAnalysis({ sequenceId, candidate, radius, onRadiu
   }
 
   return <section id="moving-candidate-analysis" className="motion-analysis" aria-label="Moving candidate measurements">
-    <h4>Analyze moving candidate</h4>
+    <div className="analysis-panel-heading"><h4>Analyze moving candidate</h4>{onViewStationarySpectrum && <button className="text-button" onClick={onViewStationarySpectrum}>View stationary-region spectrum</button>}</div>
     <p className="hint">Measure the marked position in each supporting native frame. These are quick-look exposure measurements, not the stationary 102-channel mosaic spectrum.</p>
     <div className="motion-analysis-controls">
       <label>Aperture radius (native pixels)
