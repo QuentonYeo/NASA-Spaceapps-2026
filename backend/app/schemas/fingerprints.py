@@ -4,10 +4,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.services.native_regions import Aperture, NativeCircle
 
 
-class FingerprintQuery(BaseModel):
+class NativeRegionQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     referenceFrameId: str = Field(min_length=1, max_length=2048)
     circle: NativeCircle
+
+
+class FingerprintQuery(NativeRegionQuery):
     retry: bool = False
 
 

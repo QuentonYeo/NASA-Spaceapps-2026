@@ -30,7 +30,7 @@ class IrsaArchive:
     def __init__(self, collections=("spherex_dr1",)):
         self.collections = collections
 
-    def discover(self, region: Region) -> list[Exposure]:
+    def discover(self, region: Region, *, collections: tuple[str, ...] | None = None) -> list[Exposure]:
         coord = SkyCoord(region.ra, region.dec, unit="deg")
 
         def query(remaining):
@@ -40,7 +40,7 @@ class IrsaArchive:
                 return [
                     SIA2Query(IRSA_SIA_ENDPOINT, pos=(coord, 1 * u.arcsec),
                               collection=collection, session=session).execute().to_table()
-                    for collection in self.collections
+                    for collection in dict.fromkeys(collections or self.collections)
                 ]
 
         try:

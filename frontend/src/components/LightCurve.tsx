@@ -47,6 +47,15 @@ function groupsByWavelength(points: LightCurvePoint[]) {
   }).sort((a, b) => b.dates - a.dates || b.points.length - a.points.length || a.minimum - b.minimum);
 }
 
+type WavelengthGroup = ReturnType<typeof groupsByWavelength>[number];
+
+function groupLabel(group: WavelengthGroup) {
+  const minimum = group.minimum.toFixed(3);
+  const maximum = group.maximum.toFixed(3);
+  const range = minimum === maximum ? minimum : `${minimum}–${maximum}`;
+  return `${range} µm · ${group.detector} · ${group.dates} ${group.dates === 1 ? 'date' : 'dates'}`;
+}
+
 function FluxChart({ points, selectedId }: { points: LightCurvePoint[]; selectedId?: string }) {
   const times = points.map(point => Date.parse(point.observedAtUtc));
   const t0 = times[0];
@@ -119,13 +128,15 @@ export function LightCurve({ sequenceId, outerWings, selectedId, onSelect, onMea
   const currentPoint = group?.points.find(point => point.frameId === selectedId) ?? group?.points[0];
 
   return <section className="auto-observation light-curve" aria-labelledby="light-curve-heading">
-    <div className="section-heading">
-      <h3 id="light-curve-heading">Brightness over time</h3>
+    <div className="analysis-heading">
+      <div>
+        <h2 id="light-curve-heading">Brightness over time</h2>
+        <p>Compare the star’s brightness across dates at similar wavelengths. Each point uses light from a ring around the star, with the local sky background subtracted.</p>
+      </div>
       <button className="primary" disabled={!sequenceId || pending} onClick={() => void measure()}>
         {pending ? 'Measuring…' : 'Measure brightness'}
       </button>
     </div>
-    <p>Each point sums selected pixels in a ring around the star and subtracts the local background. Wavelength groups collect comparable exposures.</p>
     {!sequenceId && <p>Available after the frames finish loading.</p>}
     {pending && <p role="status">Measuring saved FITS exposures…</p>}
     {error && <p role="alert">{error}</p>}
@@ -136,23 +147,24 @@ export function LightCurve({ sequenceId, outerWings, selectedId, onSelect, onMea
         <ul>{Object.entries(measurements.skipped).map(([reason, count]) => <li key={reason}>{reason} · {count}</li>)}</ul>
       </details>}
       {group && <>
-        <label className="zoom-control">Wavelength group
-          <select value={group.id} onChange={event => {
+        <div className="wavelength-selector">
+          <label htmlFor="light-curve-wavelength">Compare at</label>
+          <select id="light-curve-wavelength" value={group.id} onChange={event => {
             const next = groups.find(item => item.id === event.target.value);
             if (!next) return;
             setGroupId(next.id);
             if (!next.points.some(point => point.frameId === selectedId)) onSelect(next.points[0].frameId);
           }}>
-            {groups.map(item => <option key={item.id} value={item.id}>
-              {item.detector} · {item.minimum.toFixed(3)}–{item.maximum.toFixed(3)} µm · {item.points.length} frames
-            </option>)}
+            {groups.map(item => <option key={item.id} value={item.id}>{groupLabel(item)}</option>)}
           </select>
-        </label>
+        </div>
         {currentPoint && <button className="text-button" onClick={() => onSelect(currentPoint.frameId, true)}>
           Show measured pixels on frame
         </button>}
-        {group.dates < 2 && <p>Only one observing date in this group.</p>}
-        <FluxChart points={group.points} selectedId={selectedId} />
+        {group.dates < 2 && <p>This group has one observing date. Comparing brightness over time requires at least two dates.</p>}
+        <div className="light-curve-plot">
+          <FluxChart points={group.points} selectedId={selectedId} />
+        </div>
         <p>The cyan overlay on the frame shows the pixels used for wing flux. The core is outside the measurement.</p>
         <p>Wing flux is a relative brightness check. Differences in focus, wavelength and detector response can also affect the values.</p>
         <details>

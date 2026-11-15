@@ -27,20 +27,24 @@ class FramesService:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
-    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False) -> dict:
+    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None,
+              find_movers: bool = False, collections: tuple[str, ...] | None = None) -> dict:
         job = Job(str(uuid4()), region)
         if find_movers:
             job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
         self.jobs.add(job)
-        self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
+        self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector, collections)
         return {"sequenceId": job.id, "status": "queued",
                 "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
 
-    def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None):
+    def _run(self, job: Job, exposure_ids: frozenset[str], detector: str | None,
+             collections: tuple[str, ...] | None):
         try:
             with job.lock:
                 job.status = "discovering"
-            exposures = sorted({f.id: f for f in self.archive.discover(job.region)}.values(), key=lambda f: (f.mjd, f.id))
+            discovered = (self.archive.discover(job.region, collections=collections) if collections
+                          else self.archive.discover(job.region))
+            exposures = sorted({f.id: f for f in discovered}.values(), key=lambda f: (f.mjd, f.id))
             if exposure_ids:
                 exposures = [frame for frame in exposures if frame.id in exposure_ids]
                 if len(exposures) != len(exposure_ids):

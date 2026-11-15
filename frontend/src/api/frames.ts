@@ -1,6 +1,11 @@
+import type { Region, RegionSelection } from './regions';
+
+export type SpectralImageCollection = 'spherex_dr1' | 'spherex_qr3';
+
 export interface SkyQuery {
   ra: number; dec: number; fov: number;
   exposureIds?: string[];
+  collections?: SpectralImageCollection[];
   detector?: string;
   findMovers?: boolean;
 }
@@ -51,7 +56,8 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number }, method = body ? 'POST' : 'GET'): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | Pick<RegionSelection, 'referenceFrameId' | 'circle'>,
+                          method = body ? 'POST' : 'GET'): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -111,8 +117,13 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  const { ra, dec, fov, exposureIds, detector, findMovers } = query;
-  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers });
+  const { ra, dec, fov, exposureIds, detector, findMovers, collections } = query;
+  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers, collections });
+}
+
+export function resolveSkyRegion(selection: RegionSelection, signal: AbortSignal): Promise<Region> {
+  const { sequenceId, referenceFrameId, circle } = selection;
+  return request<Region>(`/api/frames/${encodeURIComponent(sequenceId)}/sky-region`, signal, { referenceFrameId, circle });
 }
 
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {

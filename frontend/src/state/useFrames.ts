@@ -62,6 +62,7 @@ export function useFrames() {
     const sameQuery = !!(!restart && input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
       input.dec === existing.query.dec && input.fov === existing.query.fov &&
       input.findMovers === existing.query.findMovers && input.detector === existing.query.detector &&
+      JSON.stringify(input.collections) === JSON.stringify(existing.query.collections) &&
       JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
     const activeExampleId = input ? exampleId : existing?.validationExampleId;
     setValidationExampleId(activeExampleId);
