@@ -1,3 +1,4 @@
+import gzip
 import io
 import time
 from threading import Event, RLock
@@ -143,7 +144,7 @@ def test_failed_acquisition_retry(tmp_path):
 
 def test_fov_linked_api_and_region_scoping(tmp_path):
     path=tmp_path/'cube.fits'; native=cube_file(path)
-    jobs=LocalJobs(); job=Job('fov',Region(60.8109955,51.3404038,.05)); job.science['frame/0']=native; jobs.add(job)
+    jobs=LocalJobs(); job=Job('fov',Region(60.8109955,51.3404038,.05)); job.science['frame/0']=gzip.compress(native); jobs.add(job)
     service=Fingerprints(cache=LocalCache(path))
     try:
         with TestClient(create_app(SimpleNamespace(jobs=jobs),fingerprints=service)) as client:

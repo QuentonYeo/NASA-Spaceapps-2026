@@ -19,7 +19,12 @@ Submit `POST /api/frames` with JSON:
 {"ra": 133.79513, "dec": -7.24515, "fov": 0.05}
 ```
 
-Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up to 1 degree. Optional `exposureIds` (1–12) and `detector` (D1–D6) restrict discovery results before downloads are scheduled. Set `findMovers: true` to prioritize observation triples and return ranked tracks in the poll response’s `motion` field. Motion searches work in batches of at most 12 exposures. Each batch is analyzed independently on FITS pixels, and completed candidate lists are retained with the search checkpoint.
+Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up to 1 degree. Optional `exposureIds` (1–12) and `detector` (D1–D6) restrict discovery results before downloads are scheduled. Explore downloads successive batches and then calls
+`POST /api/frames/{sequenceId}/auto-observation` to start full-sequence motion
+analysis. Poll that path with GET for progress and ranked candidates. The analysis
+uses retained FITS data without downloading again. Native FITS retention is
+losslessly compressed, bounded by the science storage budget and process-local.
+The legacy opt-in `findMovers: true` still analyzes individual download batches.
 Returns HTTP 202 with `sequenceId`, `pollUrl`, and `pollAfterSeconds`.
 Poll `GET {pollUrl}?after=0`, then use each response's `nextCursor` as `after`.
 Respect `pollAfterSeconds` and continue until status is terminal **and** `hasMore`

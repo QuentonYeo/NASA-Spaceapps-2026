@@ -1,5 +1,6 @@
 from __future__ import annotations
 """Bounded, process-local job storage. Replace for multi-worker deployment."""
+import gzip
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -28,10 +29,16 @@ class Job:
     scheduled: int = 0
     display_limits: dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
     motion: dict | None = None
+    observation: dict | None = None
     gaia_catalogue: dict | None = None
     gaia_lock: Lock = field(default_factory=Lock)
     error: dict | None = None
     lock: RLock = field(default_factory=RLock)
+
+    def science_cutout(self, frame_id: str) -> bytes | None:
+        with self.lock:
+            compressed = self.science.get(frame_id)
+        return gzip.decompress(compressed) if compressed is not None else None
 
 
 class LocalJobs:

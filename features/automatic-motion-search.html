@@ -11,19 +11,26 @@ body{max-width:800px;margin:40px auto;padding:0 24px;color:#182b3d;background:#f
 <body>
 <main>
 <h1>Automatic motion search</h1>
-<p>In <a href="http://localhost:5173/#explore">Explore for movement</a>, enter RA, Dec and field of view, or pick a suggested field, then select <strong>Start</strong>. The backend chooses exposures and proposes tracks automatically. Select a candidate to open its supporting exposures in Aligned Blink.</p>
+<p>In <a href="http://localhost:5173/#explore">Explore for movement</a>, enter RA, Dec and field of view, or pick a suggested field, then select <strong>Start</strong>. The viewer downloads the requested field through successive batches. When loading finishes, select <strong>Start auto observation</strong> to scan retained FITS data and rank candidate tracks. Select a candidate to open its supporting exposures in Aligned Blink.</p>
+<h2>Reference search · Vesta field</h2>
+<ul>
+<li>RA <code>223.024527</code>°</li>
+<li>Dec <code>-11.992267</code>°</li>
+<li>Field of view <code>0.42</code>°</li>
+</ul>
+<p>Leave the detector on <strong>All detectors</strong>, select <strong>Start</strong>, then select <strong>Start auto observation</strong> once downloads finish. To recognize Vesta’s track among the candidates, compare the supporting D6 timestamps and positions with the <a href="moving-object-review.html#vesta">worked Vesta example</a>.</p>
 <h2>How the first pass works</h2>
 <ol>
-<li>Group the archive results by detector and release. Prioritize sets of three distinct times with gaps of at least 30 minutes, preferring balanced spacing and a span close to one day, capped at two days. Analyze at most 12 exposures at a time. <strong>Search more observations</strong> screens another batch and retains earlier candidate results.</li>
+<li>Finish loading the field before analyzing it. The analysis reads all available retained FITS frames without another archive download. Downloads continue in batches, and the viewer shows analysis progress separately.</li>
 <li>On the calibrated native FITS image, estimate local background with a median filter. Find up to 24 strong local peaks per frame, using valid-pixel masks, robust noise estimates and the variance plane when available. Require an unmasked peak and at least 15 usable pixels in its 5 × 5 neighborhood. Project each measured peak onto the aligned sky grid.</li>
-<li>Reject peaks coincident with peaks in other frames of the detector group. Link three positions at different times on a roughly straight track. Require movement of at least three native pixels, an intermediate position within 1.6 pixels of the trial track and frame-center wavelengths within 15% of one another. Rank by the weakest detection’s peak signal-to-noise and the intermediate-position residual. Tracks sharing a detection or passing within four pixels in two supporting frames are deduplicated within each batch.</li>
+<li>Compare exposures from the same detector and release. Reject peaks coincident with peaks in comparable frames within the search time window. Consider triples with at least 30 minutes between measurements and no more than two days across the track. Link three positions at different times on a roughly straight track. Require movement of at least three native pixels, an intermediate position within 1.6 pixels of the trial track and frame-center wavelengths within 15% of one another. Rank by the weakest detection’s peak signal-to-noise and the intermediate-position residual. Tracks sharing a detection or passing within four pixels in two supporting frames are deduplicated across the downloaded sequence. The candidate list appears after analysis finishes.</li>
 </ol>
 <h2>Review a candidate</h2>
 <p>The violet circle follows the measured position in each supporting exposure. The table shows UTC time, sky coordinates and peak signal-to-noise. The candidate summary gives approximate displacement and elapsed time. Use nearby stars and Gaia markers to check alignment. Measured violet positions come from the image data. Known-object validation overlays use catalogue or predicted positions.</p>
 <h2>Interpret the results</h2>
 <p>Exposure discovery calls IRSA’s public SIA search directly. A lookup error means the archive search failed before analysis. Use Start again once the archive is available.</p>
 <p>This baseline uses numerical image processing and deterministic ranking. It does not use an LLM or a trained model. Scores rank candidates within the analyzed data and are not probabilities of discovery. A search without tracks only describes the exposures and thresholds actually tested. If there is no eligible triple, the viewer reports insufficient comparable data. The analysis requires usable sky mapping and local wavelength metadata, so IMAGE-only cutouts cannot be analyzed.</p>
-<p>Current limitations include coarse wavelength matching at the field center, peak-pixel astrometry, no cross-batch track linking, and no known-object cross-match or shift-and-stack. Blends, artifacts, or unrelated spots can still form false tracks. Faint, slow, or curved tracks may be missed. <a href="moving-object-review.html">How astronomers check for motion</a></p>
+<p>Current limitations include coarse wavelength matching at the field center, peak-pixel astrometry, and no known-object cross-match or shift-and-stack. Only frames with retained FITS data and aligned previews can be scanned. The viewer reports when some downloaded frames lack those inputs. FITS data remains subject to the backend’s science retention budget and process lifetime. Completed candidate lists are saved with the search checkpoint. Blends, artifacts, or unrelated spots can still form false tracks. Faint, slow, or curved tracks may be missed. <a href="moving-object-review.html">How astronomers check for motion</a></p>
 </main>
 </body>
 </html>

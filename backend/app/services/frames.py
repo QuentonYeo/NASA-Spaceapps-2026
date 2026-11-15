@@ -1,9 +1,10 @@
+import gzip
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import uuid4
 from app.domain.errors import AppError
-from app.domain.models import Region
+from app.domain.models import Exposure, Region
 from app.services.cutout_cache import CutoutCache
 from app.services.gaia import query_gaia
 from app.services.interfaces import Archive, Cutouts, Renderer
@@ -153,7 +154,7 @@ class FramesService:
             else:
                 pixels = self.cutout_cache.prepare(exposure, job.region, self.cutouts, self.renderer)
                 cutout = pixels.native_fits
-            science = compact_science(cutout)
+            science = gzip.compress(compact_science(cutout), compresslevel=1)
             with job.lock:
                 if job.science_bytes + len(science) <= self.max_science_bytes:
                     job.science[exposure.id] = science
@@ -178,6 +179,59 @@ class FramesService:
             logger.exception("Frame %s failed", exposure.id)
             result.update(status="failed", error=AppError("FRAME_ERROR", "The frame could not be prepared.", 500).payload())
         return result, detected
+
+    def auto_observation(self, sequence_id: str, *, start: bool = False) -> dict:
+        job = self.jobs.get(sequence_id)
+        with job.lock:
+            if job.observation is not None and (job.observation["status"] != "failed" or not start):
+                return job.observation
+            ready_count = sum(frame["status"] == "ready" for frame in job.results)
+            aligned_ids = {frame["id"] for frame in job.results if frame.get("alignedImageData")}
+            frames = [exposure for exposure, _ in job.exposures
+                      if exposure.id in job.science and exposure.id in aligned_ids]
+            status = {"status": "idle", "readyFrames": ready_count, "availableFrames": len(frames),
+                      "processedFrames": 0, "analyzedFrames": 0, "comparable": False,
+                      "candidates": [], "error": None}
+            if not start:
+                return status
+            if job.status not in {"completed", "partial"}:
+                raise AppError("OBSERVATION_NOT_READY", "Wait for the frame downloads to finish.", 409)
+            if not frames:
+                raise AppError("SCIENCE_UNAVAILABLE", "Analysis needs retained FITS data. Select Start to reload this field.", 409)
+            job.observation = {**status, "status": "running"}
+            job.finished = None
+            self.jobs.executor.submit(self._analyze_observation, job, frames)
+            return job.observation
+
+    def _analyze_observation(self, job: Job, frames: list[Exposure]):
+        spots = []
+        try:
+            for index, exposure in enumerate(frames, 1):
+                try:
+                    cutout = job.science_cutout(exposure.id)
+                    if cutout is not None:
+                        detected = detect_spots(exposure, self.renderer.prepare(cutout, job.region), job.region)
+                        if detected is not None:
+                            spots.append(detected)
+                except (AppError, OSError, ValueError, TypeError, RuntimeError):
+                    logger.warning("Source analysis unavailable for frame %s", exposure.id, exc_info=True)
+                with job.lock:
+                    job.observation = {**job.observation, "processedFrames": index, "analyzedFrames": len(spots)}
+
+            tracks, comparable = link_tracks(spots, job.region, limit=None)
+            with job.lock:
+                job.observation = {
+                    **job.observation, "status": "completed", "comparable": comparable,
+                    "candidates": [{**track, "id": str(index)} for index, track in enumerate(tracks, 1)],
+                }
+                job.finished = time.monotonic()
+                self.jobs.checkpoint(job)
+        except Exception:
+            logger.exception("Auto observation failed for sequence %s", job.id)
+            with job.lock:
+                job.observation = {**job.observation, "status": "failed",
+                                   "error": "Motion analysis could not finish. Try Auto observation again."}
+                job.finished = time.monotonic()
 
     def gaia_sources(self, sequence_id: str) -> dict:
         job = self.jobs.get(sequence_id)

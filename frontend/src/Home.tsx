@@ -21,7 +21,7 @@ export function Home() {
       <a href="#explore" className="home-path">
         <span className="home-kicker">LIVE OBSERVATIONS</span>
         <h2>Explore for movement</h2>
-        <p>Enter sky coordinates or start with a suggested field. Load more observations as you need them.</p>
+        <p>Enter sky coordinates or start with a suggested field. Download the field and run a search for motion.</p>
         <span className="home-action">Open the explorer <span aria-hidden="true">↗</span></span>
       </a>
     </nav>

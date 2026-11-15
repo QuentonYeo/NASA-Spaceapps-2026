@@ -97,7 +97,7 @@ def test_cached_crop_retains_science_in_the_displayed_native_coordinates():
         result, _ = service._frame(smaller, exposure, 0)
         assert result['scienceStatus'] == 'retained'
         assert source.requests == [(exposure.id, wide)]
-        with fits.open(io.BytesIO(first.science[exposure.id])) as original, fits.open(io.BytesIO(smaller.science[exposure.id])) as retained:
+        with fits.open(io.BytesIO(first.science_cutout(exposure.id))) as original, fits.open(io.BytesIO(smaller.science_cutout(exposure.id))) as retained:
             crop = covered_slice(WCS(original['IMAGE'].header).celestial, original['IMAGE'].shape, nearby)
             for name in ('IMAGE', 'FLAGS', 'VARIANCE', 'ZODI'):
                 assert retained[name].shape == (result['grid']['height'], result['grid']['width'])
@@ -106,7 +106,7 @@ def test_cached_crop_retains_science_in_the_displayed_native_coordinates():
                 assert retained[name].header['CRPIX2W'] == original[name].header['CRPIX2W']-crop[0].start
             np.testing.assert_array_equal(retained['WCS-WAVE'].data, original['WCS-WAVE'].data)
             reference = NativeCircle(x=4,y=4,radiusPixels=1)
-            region = sky_aperture(smaller.science[exposure.id],reference)
+            region = sky_aperture(smaller.science_cutout(exposure.id),reference)
             expected = WCS(original['IMAGE'].header).celestial.pixel_to_world(4+crop[1].start,4+crop[0].start)
             assert abs(region.ra-expected.ra.deg) < 1e-10
             assert abs(region.dec-expected.dec.deg) < 1e-10

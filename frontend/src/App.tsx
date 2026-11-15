@@ -10,6 +10,7 @@ import { GaiaMarkers } from './GaiaOverlay';
 import { arosaPosition } from './state/arosaValidation';
 import { vestaPosition } from './state/vestaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
+import { useAutoObservation } from './state/useAutoObservation';
 import { MovingCandidates } from './MovingCandidates';
 import { Home } from './Home';
 import { examples, fields } from './state/validationExamples';
@@ -87,7 +88,11 @@ function App() {
   const blinkCount = blinkFrames.length;
   const activeIndex = Math.min(blinkIndex, Math.max(0, blinkCount - 1));
   const visible = blinkMode ? blinkFrames[activeIndex] : selected;
-  const motion = mode === 'explore' && sequence.query?.findMovers ? sequence.page?.motion : null;
+  const downloadComplete = (sequence.page?.status === 'completed' || sequence.page?.status === 'partial')
+    && !sequence.busy && !sequence.page.hasMore;
+  const canAnalyze = mode === 'explore' && showResults && downloadComplete && !!ready.length;
+  const observation = useAutoObservation(canAnalyze ? sequence.page?.sequenceId : undefined);
+  const motion = canAnalyze && observation.result?.status === 'completed' ? observation.result : null;
   const activeTrack = motion?.candidates.find((candidate) => candidate.id === reviewId);
   const measured = blinkMode && activeTrack?.detections.find((point) => point.frameId === visible?.id);
   const visibleGrid = blinkMode ? visible?.alignedGrid : visible?.grid;
@@ -174,7 +179,7 @@ function App() {
       gaia.toggle(true);
       void sequence.start({ ...query, exposureIds: example.exposureIds });
     } else {
-      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true, findMovers: true },
+      void sequence.start({ ...query, detector: detector || undefined },
         ready.length > 0 && ready.every(frame => frame.scienceStatus === 'unavailable'));
     }
   }
@@ -250,7 +255,7 @@ function App() {
           {sequence.notice && <p className="hint">{sequence.notice}</p>}
           {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
           {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
-          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>{sequence.paused ? 'Resume loading' : sequence.query?.findMovers ? 'Search more observations' : 'Load next batch'}</button>}
+          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>Resume loading</button>}
           {sequence.error && <p className="error" role="alert">{sequence.error}</p>}
           {missingPreferredFrame && <p className="hint">
             The documented comparison is incomplete. The viewer uses available aligned frames.
@@ -262,8 +267,28 @@ function App() {
       </aside>
       <section className="panel viewer-panel" aria-label="Frame viewer">
         <div className="viewer-heading"><div><p className="eyebrow">{mode === 'validate' && activeExample ? activeExample.name : 'OBSERVATIONS'}</p><h2>{selected ? `Visit ${selected.visit + 1}` : 'Your window into the sky'}</h2></div><span className="tag">{ready.length ? `${index + 1} / ${ready.length}` : 'NO FRAMES YET'}</span></div>
-        {mode === 'explore' && showResults && sequence.query?.findMovers && !sequence.error &&
-          <MovingCandidates search={motion} busy={sequence.busy} activeId={reviewId} onReview={reviewCandidate} />}
+        {mode === 'explore' && showResults && sequence.query && <section className="auto-observation" aria-label="Auto observation">
+          <h3>Auto observation</h3>
+          {!downloadComplete && !sequence.error && <p>Available after the frame downloads finish.</p>}
+          {canAnalyze && observation.pending && <p role="status">Checking analysis status…</p>}
+          {canAnalyze && observation.error && <>
+            <p role="alert">{observation.error}</p>
+            <button className="text-button" onClick={() => void observation.reconnect()}>Check status</button>
+          </>}
+          {canAnalyze && observation.result?.status === 'running' && <div role="status">
+            <p>Analyzing {observation.result.processedFrames} of {observation.result.availableFrames} frames…</p>
+            <progress aria-label="Frames analyzed" max={observation.result.availableFrames} value={observation.result.processedFrames} />
+          </div>}
+          {canAnalyze && observation.result?.status === 'failed' && <p role="alert">{observation.result.error}</p>}
+          {canAnalyze && observation.result && ['idle', 'failed'].includes(observation.result.status) && <>
+            {observation.result.availableFrames === 0 && <p>No retained FITS frames are available. Select Start to reload the field.</p>}
+            <button className="primary" disabled={!observation.result.availableFrames}
+              onClick={() => void observation.start()}>Start auto observation</button>
+          </>}
+          {canAnalyze && observation.result && observation.result.availableFrames < observation.result.readyFrames && observation.result.availableFrames > 0 &&
+            <p>{observation.result.availableFrames} of {observation.result.readyFrames} downloaded frames have retained FITS data and aligned previews for analysis.</p>}
+          {motion && <MovingCandidates search={motion} activeId={reviewId} onReview={reviewCandidate} />}
+        </section>}
         <div className="viewer-controls">
         <label className="zoom-control">Display size
           <select value={zoom} onChange={(event) => setZoom(event.target.value)}>

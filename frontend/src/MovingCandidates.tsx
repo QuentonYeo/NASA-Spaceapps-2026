@@ -1,18 +1,17 @@
-import type { MotionCandidate, MotionSearch } from './api/frames';
+import type { MotionCandidate, ObservationAnalysis } from './api/frames';
 
 interface Props {
-  search?: MotionSearch | null;
-  busy: boolean;
+  search: ObservationAnalysis;
   activeId: string | null;
   onReview: (candidate: MotionCandidate) => void;
 }
 
-export function MovingCandidates({ search, busy, activeId, onReview }: Props) {
+export function MovingCandidates({ search, activeId, onReview }: Props) {
   return <section className="moving-candidates" aria-label="Motion candidates">
     <h3>Motion candidates</h3>
     <p role="status">
-      {busy ? 'Analyzing the selected sky field…' : !search?.comparable
-        ? 'Not enough usable, comparable exposures in the analyzed batch.'
+      {!search.comparable
+        ? `Not enough usable, comparable exposures in the ${search.analyzedFrames} analyzed frames.`
         : search.candidates.length
           ? `${search.candidates.length} candidates · ${search.analyzedFrames} frames analyzed`
           : `No candidate tracks in ${search.analyzedFrames} analyzed frames.`}

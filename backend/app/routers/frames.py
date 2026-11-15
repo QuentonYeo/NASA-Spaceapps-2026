@@ -2,7 +2,7 @@ from app.services.native_regions import Aperture, PixelPosition, sky_aperture
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response
 from app.domain.models import Region
-from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, SequencePage
+from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, ObservationAnalysis, SequencePage
 from app.services.interfaces import Frames
 from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus
 
@@ -20,8 +20,7 @@ def start_fingerprint(sequence_id: str, query: FingerprintQuery, request: Reques
     """
     from app.domain.errors import AppError
     job = request.app.state.frames.jobs.get(sequence_id)
-    with job.lock:
-        data = job.science.get(query.referenceFrameId)
+    data = job.science_cutout(query.referenceFrameId)
     if data is None:
         raise AppError("SCIENCE_UNAVAILABLE", "Choose a loaded native image with retained coordinates.", 409)
     try:
@@ -70,6 +69,20 @@ def poll_frames(sequence_id: str, response: Response,
 
 
 
+@router.get("/{sequence_id}/auto-observation", response_model=ObservationAnalysis)
+def observation_status(sequence_id: str, response: Response,
+                       service: Annotated[Frames, Depends(get_frames_service)]):
+    response.headers["Cache-Control"] = "no-store"
+    return service.auto_observation(sequence_id)
+
+
+@router.post("/{sequence_id}/auto-observation", status_code=202, response_model=ObservationAnalysis)
+def start_observation(sequence_id: str, response: Response,
+                      service: Annotated[Frames, Depends(get_frames_service)]):
+    response.headers["Cache-Control"] = "no-store"
+    return service.auto_observation(sequence_id, start=True)
+
+
 @router.get("/{sequence_id}/gaia", response_model=GaiaCatalogue)
 def gaia_sources(sequence_id: str, response: Response,
                  service: Annotated[Frames, Depends(get_frames_service)]):
@@ -100,8 +113,7 @@ def pixel_coordinate(sequence_id: str, frame_id: str, query: PixelPosition, requ
     from astropy.wcs import WCS
     from app.domain.errors import AppError
     job = request.app.state.frames.jobs.get(sequence_id)
-    with job.lock:
-        data = job.science.get(frame_id)
+    data = job.science_cutout(frame_id)
     if data is None:
         raise AppError("SCIENCE_UNAVAILABLE", "Science cutout unavailable.", 409)
     with fits.open(io.BytesIO(data)) as hdus:
@@ -122,8 +134,7 @@ def project_region(sequence_id: str, frame_id: str, query: Aperture, request: Re
     from astropy.wcs import WCS
     from app.domain.errors import AppError
     job = request.app.state.frames.jobs.get(sequence_id)
-    with job.lock:
-        data = job.science.get(frame_id)
+    data = job.science_cutout(frame_id)
     if data is None:
         raise AppError("SCIENCE_UNAVAILABLE", "Science cutout unavailable.", 409)
     with fits.open(io.BytesIO(data)) as hdus:

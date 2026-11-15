@@ -2,7 +2,6 @@ export interface SkyQuery {
   ra: number; dec: number; fov: number;
   exposureIds?: string[];
   detector?: string;
-  manualBatches?: boolean;
   findMovers?: boolean;
 }
 export interface ApiError { code: string; message: string; retryable: boolean; retryAfterSeconds: number | null }
@@ -28,6 +27,11 @@ export interface MotionCandidate {
 export interface MotionSearch {
   analyzedFrames: number; comparable: boolean; candidates: MotionCandidate[];
 }
+export interface ObservationAnalysis extends MotionSearch {
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  readyFrames: number; availableFrames: number; processedFrames: number; error: string | null;
+}
+
 export interface SequencePage {
   sequenceId: string; status: 'queued' | 'discovering' | 'running' | 'awaiting_more' | 'completed' | 'partial' | 'failed';
   scheduledCount: number; remaining: number; batchSize: number;
@@ -47,11 +51,11 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number }): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number }, method = body ? 'POST' : 'GET'): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, {
-      method: body ? 'POST' : 'GET',
+      method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
@@ -129,4 +133,9 @@ export interface GaiaCatalogue { sources: GaiaSource[]; limited: boolean }
 
 export function getGaiaCatalogue(sequenceId: string, signal: AbortSignal) {
   return request<GaiaCatalogue>(`/api/frames/${encodeURIComponent(sequenceId)}/gaia`, signal);
+}
+
+export function fetchAutoObservation(sequenceId: string, signal: AbortSignal, start = false) {
+  return request<ObservationAnalysis>(`/api/frames/${encodeURIComponent(sequenceId)}/auto-observation`,
+    signal, undefined, start ? 'POST' : 'GET');
 }

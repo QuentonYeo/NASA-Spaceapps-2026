@@ -1,7 +1,7 @@
 """Bounded first-pass detection on calibrated, individual SPHEREx exposures."""
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
-from itertools import combinations
 from math import hypot
 
 import numpy as np
@@ -78,7 +78,7 @@ def detect_spots(exposure: Exposure, pixels: PreviewPixels, region: Region) -> S
     return Spots(exposure, pixels.wavelength_um, xy[inside], snr_map[rows, cols][inside])
 
 
-def link_tracks(spots: list[Spots], region: Region) -> tuple[list[dict], bool]:
+def link_tracks(spots: list[Spots], region: Region, *, limit: int | None = 10) -> tuple[list[dict], bool]:
     groups = defaultdict(list)
     for entry in sorted(spots, key=lambda entry: (entry.exposure.mjd, entry.exposure.id)):
         groups[(entry.exposure.release, entry.exposure.detector)].append(entry)
@@ -87,22 +87,34 @@ def link_tracks(spots: list[Spots], region: Region) -> tuple[list[dict], bool]:
     grid, side = query_grid(region)
     for group in groups.values():
         trees = [cKDTree(frame.xy) for frame in group]
+        times = [frame.exposure.mjd for frame in group]
         moving = []
         for index, frame in enumerate(group):
-            matches = sum(
-                (tree.query(frame.xy)[0] <= LINK_RADIUS)
-                for j, tree in enumerate(trees) if index != j
-            )
-            moving.append(np.asarray(matches) == 0 if len(group) > 1 else np.ones(len(frame.xy), dtype=bool))
-        for a, b, c in combinations(range(len(group)), 3):
-            first, middle, last = (group[i] for i in (a, b, c))
-            t0, t1, t2 = (frame.exposure.mjd for frame in (first, middle, last))
-            if min(t1 - t0, t2 - t1) < MIN_GAP_DAYS or t2 - t0 > MAX_SPAN_DAYS:
-                continue
-            waves = [entry.wavelength for entry in (first, middle, last)]
-            if max(waves) > 1.15 * min(waves):
-                continue
+            matches = np.zeros(len(frame.xy), dtype=bool)
+            for j, tree in enumerate(trees):
+                gap = abs(times[index] - times[j])
+                waves = (frame.wavelength, group[j].wavelength)
+                if MIN_GAP_DAYS <= gap <= MAX_SPAN_DAYS and max(waves) <= 1.15 * min(waves):
+                    matches |= tree.query(frame.xy)[0] <= LINK_RADIUS
+            moving.append(~matches)
+
+        def comparable_triples():
+            for a, t0 in enumerate(times):
+                first_middle = bisect_left(times, t0 + MIN_GAP_DAYS, a + 1)
+                stop = bisect_right(times, t0 + MAX_SPAN_DAYS, first_middle)
+                for b in range(first_middle, stop - 1):
+                    first_last = bisect_left(times, times[b] + MIN_GAP_DAYS, b + 1, stop)
+                    for c in range(first_last, stop):
+                        waves = [group[i].wavelength for i in (a, b, c)]
+                        if max(waves) <= 1.15 * min(waves):
+                            yield a, b, c
+
+        for a, b, c in comparable_triples():
             eligible = True
+            if not all(moving[i].any() for i in (a, b, c)):
+                continue
+            first, middle, last = (group[i] for i in (a, b, c))
+            t0, t1, t2 = (times[i] for i in (a, b, c))
             fraction = (t1 - t0) / (t2 - t0)
             endpoints = np.flatnonzero(moving[c])
             for i in np.flatnonzero(moving[a]):
@@ -123,10 +135,9 @@ def link_tracks(spots: list[Spots], region: Region) -> tuple[list[dict], bool]:
                     detections = []
                     for entry, spot in ((first, i), (middle, mid), (last, endpoint)):
                         x, y = map(float, entry.xy[spot])
-                        sky = grid.pixel_to_world(x - .5, side - .5 - y)
                         detections.append({
                             "frameId": entry.exposure.id, "observedAtUtc": entry.exposure.observed_at,
-                            "x": x, "y": y, "ra": float(sky.ra.deg), "dec": float(sky.dec.deg),
+                            "x": x, "y": y,
                             "signalToNoise": float(entry.snr[spot]),
                         })
                     strength = min(detection["signalToNoise"] for detection in detections)
@@ -151,7 +162,10 @@ def link_tracks(spots: list[Spots], region: Region) -> tuple[list[dict], bool]:
             continue
         used.update(keys)
         accepted_positions.append(positions)
+        for point in track["detections"]:
+            sky = grid.pixel_to_world(point["x"] - .5, side - .5 - point["y"])
+            point.update(ra=float(sky.ra.deg), dec=float(sky.dec.deg))
         selected.append(track)
-        if len(selected) == 10:
+        if limit is not None and len(selected) >= limit:
             break
     return selected, eligible

@@ -117,6 +117,14 @@ class MotionSearch(BaseModel):
     candidates: list[MotionCandidate]
 
 
+class ObservationAnalysis(MotionSearch):
+    status: Literal["idle", "running", "completed", "failed"]
+    readyFrames: int
+    availableFrames: int
+    processedFrames: int
+    error: str | None
+
+
 class SequencePage(BaseModel):
     sequenceId: str
     centerRaDeg: float

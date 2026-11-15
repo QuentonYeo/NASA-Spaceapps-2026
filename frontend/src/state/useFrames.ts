@@ -52,7 +52,7 @@ export function useFrames() {
     if (next.error) setError(next.error.message);
   }, []);
 
-  const run = useCallback(async (input?: SkyQuery, restoring = false, loadMore = false, restart = false) => {
+  const run = useCallback(async (input?: SkyQuery, restoring = false, restart = false) => {
     if (!input && !session.current) return;
     controller.current?.abort();
     const current = new AbortController();
@@ -60,11 +60,10 @@ export function useFrames() {
     const existing = session.current;
     const sameQuery = !!(!restart && input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
       input.dec === existing.query.dec && input.fov === existing.query.fov &&
-      input.findMovers === existing.query.findMovers && input.detector === existing.query.detector && input.manualBatches === existing.query.manualBatches &&
+      input.findMovers === existing.query.findMovers && input.detector === existing.query.detector &&
       JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
     const newSearch = sameQuery ? undefined : input;
     const restorePaused = restoring && !!existing?.paused;
-    let batchesToRequest = loadMore ? 1 : 0;
     setError(''); setBusy(true); setPaused(restorePaused);
     if (newSearch) {
       saveSearch(null);
@@ -90,8 +89,7 @@ export function useFrames() {
           setResumable(false);
           return;
         }
-        if (restorePaused || (active.query.manualBatches && batchesToRequest === 0)) return;
-        batchesToRequest -= 1;
+        if (restorePaused) return;
         setNotice('Requesting the next image batch...');
         await requestBatch(active.sequenceId, latest.scheduledCount, current.signal);
       }
@@ -119,8 +117,8 @@ export function useFrames() {
     return () => controller.current?.abort();
   }, [run, saved]);
 
-  const start = (input: SkyQuery, restart = false) => run(input, false, false, restart);
-  const resume = () => run(undefined, false, true);
+  const start = (input: SkyQuery, restart = false) => run(input, false, restart);
+  const resume = () => run();
 
   function stop() {
     controller.current?.abort(); setBusy(false); setPaused(true);

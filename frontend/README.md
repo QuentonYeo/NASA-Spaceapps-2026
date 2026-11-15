@@ -14,9 +14,9 @@ proxy; production hosting must route `/api` to the backend separately.
 Home offers **Validate a known object** and **Explore for movement**. Validate
 loads selected exposure IDs for Vesta, Arosa, M101 or Barnard’s Star and sets up their
 default comparison in Aligned Blink. Explore accepts ICRS RA, Dec and FOV in
-degrees and an optional detector filter. It loads one batch at a time.
+degrees and an optional detector filter. It loads successive batches automatically. Once downloads finish, **Start auto observation** scans the retained FITS frames and lists candidates for review.
 **Stop loading** stops polling. **Resume loading** reconnects to the same sequence
-and cursor, and **Search more observations** requests another batch. The backend may finish
+and cursor, and continues downloading the remaining batches. The backend may finish
 a batch already in progress.
 
 Use Previous/Next, the slider, arrow keys while the viewer is focused, or the
@@ -39,7 +39,7 @@ npm test
 ## Batches and display size
 
 The backend initially downloads 12 exposures, not the whole discovered sequence.
-At `awaiting_more`, Explore waits for **Search more observations**. Validation can finish loading its small requested exposure set automatically. **Stop loading** pauses this loop;
+At `awaiting_more`, Explore automatically requests another batch. Validation can finish loading its small requested exposure set automatically. **Stop loading** pauses this loop;
 **Resume loading** continues from the saved sequence and completion cursor.
 The backend reports remaining exposures, selects each batch, and keeps visit labels
 consistent across batches. Configure `FRAME_BATCH_SIZE` on the backend to change 12.
