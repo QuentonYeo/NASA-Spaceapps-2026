@@ -29,8 +29,7 @@ export function FingerprintControls({ explorer, frame, onRegionUpdated }: { expl
   </section>;
 }
 
-function FingerprintPlot({ channels, selected, choose, references, observationWavelength, emptyMessage }: {
-  observationWavelength?: number | null;
+function FingerprintPlot({ channels, selected, choose, references, emptyMessage }: {
   emptyMessage?: string;
   channels: Channel[]; selected: number; choose: (channel: number) => void;
   references: { name: string; wavelengthUm: number }[];
@@ -54,7 +53,6 @@ function FingerprintPlot({ channels, selected, choose, references, observationWa
       <line x1={x(r.wavelengthUm)} x2={x(r.wavelengthUm)} y1="30" y2="265" stroke="var(--warning)" opacity=".5" strokeDasharray="3 4" />
       <text transform={`translate(${x(r.wavelengthUm)-3} 43) rotate(-90)`} textAnchor="end">{r.name}<title>{`${r.name}: approximate reference at ${r.wavelengthUm} micrometres; not a detection`}</title></text>
     </g>)}
-    {!!values.length && observationWavelength != null && observationWavelength >= minX && observationWavelength <= maxX && <line x1={x(observationWavelength)} x2={x(observationWavelength)} y1="30" y2="265" stroke="var(--accent)" strokeWidth="2"><title>{`Displayed observation wavelength at query centre: ${observationWavelength.toFixed(3)} micrometres`}</title></line>}
     <path d={path} fill="none" stroke="var(--accent)" strokeWidth="1" />
     {values.map(c => <circle key={c.channel} cx={x(c.wavelengthUm)} cy={y(c.value!)} r={c.channel === selected ? 5 : 2.5} fill="var(--accent)" stroke={c.channel === selected ? 'white' : 'none'} role="button" tabIndex={0}
       aria-label={`Show channel ${c.channel}`} onClick={() => choose(c.channel)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(c.channel) } }}><title>{`Channel ${c.channel} · ${c.wavelengthUm.toFixed(3)} µm · ${format(c.value)} mJy · ${c.pixels} accepted pixels`}</title></circle>)}
@@ -85,7 +83,7 @@ export function FingerprintPanel({ explorer, frame, frames, onSelect, onSelectRe
       <p className="hint">Reading the selected region across 102 channels. The loaded observations remain available while the mosaic spectrum loads.</p></div>}
     {explorer.error && <p className="error" role="alert">{explorer.error} <button onClick={explorer.retry}>Retry cube loading</button></p>}
     <FingerprintPlot channels={result?.channels ?? []} selected={explorer.selectedChannel} choose={explorer.setChannel}
-      references={referencesEnabled ? result?.references ?? [] : []} observationWavelength={frame?.wavelengthUm}
+      references={referencesEnabled ? result?.references ?? [] : []}
       emptyMessage={!explorer.selection ? 'Click the main image to analyse a spectrum.' : explorer.busy ? 'Loading spectrum...' : explorer.error ? 'Spectrum unavailable. Retry above.' : 'No usable channels. Try another region.'} />
     {result && <>
       <p role="status">{result.usableChannels} usable / {result.totalChannels} channels · fixed sky region</p>

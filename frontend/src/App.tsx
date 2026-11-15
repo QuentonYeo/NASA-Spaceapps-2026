@@ -1,3 +1,4 @@
+import { AppHeader } from './components/AppHeader';
 import { FrameMetadata } from './components/FrameMetadata';
 import { AnalysisTabs } from './components/AnalysisTabs';
 import type { AnalysisView } from './components/AnalysisTabs';
@@ -29,7 +30,7 @@ import type { ValidationExample } from './state/validationExamples';
 import './App.css';
 import './components/SpectralExplorer.css';
 
-function currentMode() {
+function currentMode(): 'home' | 'validate' | 'explore' {
   return window.location.hash === '#validate' ? 'validate' : window.location.hash === '#explore' ? 'explore' : 'home';
 }
 
@@ -92,8 +93,10 @@ function App() {
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
   const [candidateId, setCandidateId] = useState('');
   const [playing, setPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(650);
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [blinkIndex, setBlinkIndex] = useState(0);
+  const [timelineAutoplay, setTimelineAutoplay] = useState(false);
   const [brightness, setBrightness] = useState<{ key: string; points: LightCurvePoint[] }>();
 
   function preview(frame: Frame) {
@@ -168,10 +171,16 @@ function App() {
   const trajectory = blinkMode && showTrajectory && visible ? trajectoryFor(visible) : null;
 
   useEffect(() => {
-    if (!blinkMode || !playing || blinkCount < 2) return;
-    const timer = window.setInterval(() => setBlinkIndex((current) => (current + 1) % blinkCount), 650);
+    if (!playing || timelineFrames.length < 2) return;
+    const timer = window.setInterval(() => {
+      if (timelineAutoplay) setSelectedId(current => {
+        const index = timelineFrames.findIndex(frame => frame.id === current);
+        return timelineFrames[(index + 1) % timelineFrames.length]?.id ?? current;
+      });
+      else setBlinkIndex(current => (current + 1) % blinkCount);
+    }, playbackSpeed);
     return () => window.clearInterval(timer);
-  }, [blinkMode, playing, blinkCount]);
+  }, [blinkMode, playing, blinkCount, playbackSpeed, timelineFrames, timelineAutoplay]);
 
   const previousFrameId = ready[index - 1]?.id;
   const nextFrameId = ready[index + 1]?.id;
@@ -354,11 +363,14 @@ function App() {
   }
 
   function toggleBlinkPlayback() {
-    if (!playing && reference && mode !== 'validate') {
+    const start = !playing;
+    setTimelineAutoplay(start);
+    if (start && !timelineAutoplay && blinkMode && reference && mode !== 'validate') {
       setSelectedId(reference.id);
       setAppendedIds(chosenIds);
     }
-    setPlaying(!playing);
+    if (start && timelineAutoplay) setBlinkMode(false);
+    setPlaying(start);
   }
 
   if (mode === 'home') return <Home knownObjects={knownObjects} inputs={inputs} setInputs={setInputs} validation={validation}
@@ -444,7 +456,7 @@ function App() {
           {validation && <p className="error" role="alert">{validation}</p>}
         </form>
         <section className="suggested-fields" aria-label="Suggested fields">
-          <h3>Suggested fields</h3>
+          <h3>Known Objects</h3>
           <p className="hint">Choose a known field, then select Start. Saved observations are available at these exact coordinates and field of view.</p>
           <div className="suggested-field-grid">{fields.map((field) => <button className="preset" key={field.name} onClick={() => setInputs(field.inputs)}>
             <strong>{field.name}</strong><span>{field.reason}</span>
@@ -455,14 +467,7 @@ function App() {
   );
 
   return <main className="shell workflow-shell">
-    <header className="masthead">
-      <div className="brand"><span className="orbit" aria-hidden="true">✳</span> Sifting Skies <span> / SPHEREx</span></div>
-      <nav className="workspace-nav" aria-label="Workflows">
-        <a href="#home">Home</a>
-        <a href="#validate" aria-current={mode === 'validate' ? 'page' : undefined}>Validate</a>
-        <a href="#explore" aria-current={mode === 'explore' ? 'page' : undefined}>Explore</a>
-      </nav>
-    </header>
+    <AppHeader current={mode} />
     <section className="intro workflow-intro">
       {mode === 'validate' && activeExample && <p>Validate a known object</p>}
       <h1>{mode === 'validate' ? activeExample?.name ?? 'Validate a known object' : 'Explore for movement'}</h1>
@@ -497,9 +502,16 @@ function App() {
             <div className="timeline-actions">
               <span className="tag">{timelineFrames.length} frames</span>
               {activeTrack && <button className="text-button" onClick={() => resetBlink()}>Show all frames</button>}
-              {blinkMode && blinkCount > 1 && <button className="blink-playback" onClick={toggleBlinkPlayback}>
-                {playing ? 'Pause blink' : `Play blink · ${blinkCount} frames`}
-              </button>}
+              {timelineFrames.length > 1 && <>
+                <button className="blink-playback" onClick={toggleBlinkPlayback}>
+                  {playing ? 'Pause autoplay' : `Autoplay ${timelineFrames.length} frames`}
+                </button>
+                <label className="timeline-speed">Speed
+                  <select aria-label="Timeline autoplay speed" value={playbackSpeed} onChange={event => setPlaybackSpeed(Number(event.target.value))}>
+                    <option value={1200}>Slow ? 1.2 s</option><option value={650}>Medium ? 0.65 s</option><option value={250}>Fast ? 0.25 s</option>
+                  </select>
+                </label>
+              </>}
             </div>
           </div>
           {timelineFrames.length > 0 && <div className="filmstrip">
