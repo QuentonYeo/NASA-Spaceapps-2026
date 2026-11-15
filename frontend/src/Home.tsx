@@ -14,8 +14,8 @@ interface Props {
 
 export function Home({ inputs, setInputs, validation, onObserve, onValidate }: Props) {
   return <main className="home">
-    <header className="home-header"><a href="#home" className="home-brand">Sifting <span>Skies</span></a><span>SPHEREx infrared observation viewer</span></header>
-    <section className="home-hero" style={{ backgroundImage: `linear-gradient(90deg, #070a12 5%, #070a12eb 29%, #070a1240 72%), url(${galaxy})` }}>
+    <header className="home-header"><a href="#home" className="home-brand">Sifting Skies</a><span>SPHEREx infrared observation viewer</span></header>
+    <section className="home-hero" style={{ backgroundImage: `linear-gradient(90deg, #0a0a0c 3%, #0a0a0ce8 31%, #0a0a0c52 76%), url(${galaxy})` }}>
       <div className="home-hero-content">
         <p className="home-kicker">SPHEREx · INFRARED SKY</p>
         <h1>See what moves.</h1>

@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 :root{
-  font-family:'DM Sans',system-ui,sans-serif;
-  color:#e5eaf3;
-  background:#0b1019;
+  font-family:-apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;
+  color:#f5f5f7;
+  background:#101012;
   font-synthesis:none;
   text-rendering:optimizeLegibility;
   -webkit-font-smoothing:antialiased;
@@ -14,7 +13,7 @@
 body{
   margin:0
 }
-button,input{
+button,input,select{
   font:inherit
 }
 button{
@@ -27,8 +26,8 @@ button:disabled{
 a{
   color:inherit
 }
-button:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible{
-  outline:2px solid #9be6cf;
+:focus-visible{
+  outline:2px solid #70b6ff;
   outline-offset:4px
 }
 h1,h2,h3,p{
@@ -40,18 +39,15 @@ button{
 input{
   min-width:0
 }
-h1,h2,h3{
-  font-family:'Space Grotesk',system-ui,sans-serif
-}
 button,input{
-  border-radius:7px
+  border-radius:10px
 }
 button{
   transition:background .15s,border-color .15s
 }
 button:hover:not(:disabled){
-  border-color:#91d8c4
+  border-color:#78baff
 }
 ::selection{
-  background:#345f59
+  background:#234675
 }
