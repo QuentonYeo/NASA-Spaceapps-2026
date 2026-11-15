@@ -95,12 +95,12 @@ def measure_position(cutout: bytes, ra: float, dec: float, radius_pixels: float)
             raise ValueError("Too few valid background pixels around the candidate")
         aperture_weights = np.where(valid, aperture, 0.0)
         accepted_area = float(aperture_weights.sum())
-        total_area = float(aperture.sum())
+        total_area = float(np.pi * radius**2)
         if accepted_area <= 0 or total_area <= 0:
             raise ValueError("No valid pixels in the candidate aperture")
 
         flux_scale = area_sr * 1e9  # MJy/sr × sr → MJy → mJy
-        net_surface_brightness = float(np.sum(aperture_weights * patch) - background * accepted_area)
+        net_surface_brightness = float(np.sum(aperture_weights * np.where(valid, patch, 0.0)) - background * accepted_area)
         flux_mjy = net_surface_brightness * flux_scale
         uncertainty_mjy = None
         if variance is not None:

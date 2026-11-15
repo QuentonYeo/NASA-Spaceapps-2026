@@ -42,6 +42,9 @@ Keep this layout. The inline relationship and responsive access are implemented;
 
 ## Delivery status
 
+Implementation status below describes the staged UI scope, not completion of every delivery-phase requirement. Phase 0 scientific validation remains open. Phase 1 still needs review decisions/notes, detailed pixel-quality inspection, and dedicated stationary comparison controls. Phase 2 has numerical regression checks for masked NaN pixels and cutout-edge coverage; reference photometry validation remains open. Automatic measurement after detection is proposed and is not implemented.
+
+
 - **Stage 1 — Candidate Verify handoff: implemented for user review.** Candidate selection is labelled Verify, identifies the selected candidate and blink position, and provides a return to native observations. Validate remains clearly labelled for prepared examples. This stage does not add new measurements.
 - **Stage 2 — Moving-candidate quick-look: implemented for user review.** Verify can measure aperture flux at each detected position in retained native FITS frames and display flux-versus-time and sparse flux-versus-local-wavelength plots, a measurement table, and CSV export. See the limitations and measurement semantics below.
 - **Stage 3 — Analysis navigation and responsive layout: implemented for user review.** Cross-links move between moving-candidate measurements and the separate stationary-region spectrum. Mobile Image, Spectrum and Measurements tabs switch the workspace view; region selection opens the spectrum.

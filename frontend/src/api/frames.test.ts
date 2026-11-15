@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pollSequence, startSequence } from './frames';
+import { fetchMotionPhotometry, pollSequence, startSequence } from './frames';
 
 const page = (overrides = {}) => ({
   sequenceId: 'test', status: 'running', nextCursor: 1, hasMore: false, pollAfterSeconds: 1,
@@ -8,9 +8,30 @@ const page = (overrides = {}) => ({
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
   status, headers: { 'Content-Type': 'application/json' },
 });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() });
 
 describe('backend polling', () => {
+  it('allows archive photometry more than 20 seconds and reports a timeout accurately', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(ms => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('Timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    vi.stubGlobal('fetch', vi.fn((_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(options.signal.reason));
+    })));
+    const candidate = { id: 'candidate', detector: 'D6', detections: [], displacementArcsec: 1, elapsedHours: 1, residualPixels: 0, score: 1 };
+    let settled = false;
+    const run = fetchMotionPhotometry('sequence', candidate, 2.5, new AbortController().signal);
+    const check = expect(run).rejects.toThrow('timed out');
+    void run.catch(() => { settled = true });
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(300_000);
+    await check;
+  });
+
   it('posts a query once without automatically retrying job creation', async () => {
     const fetch = vi.fn().mockResolvedValue(json({ error: { message: 'Busy', retryable: true } }, 503));
     vi.stubGlobal('fetch', fetch);

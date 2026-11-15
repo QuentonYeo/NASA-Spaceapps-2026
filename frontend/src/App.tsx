@@ -216,7 +216,7 @@ function App() {
 
   function selectStationaryRegion() {
     setBlinkMode(false);
-    resetBlink();
+    setPlaying(false);
     setTab('image');
     window.setTimeout(() => document.getElementById('observation-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
   }
@@ -224,6 +224,12 @@ function App() {
   function viewMovingAnalysis() {
     setTab('image');
     if (activeTrack) {
+      const [first, ...remaining] = activeTrack.detections;
+      setSelectedId(first.frameId);
+      setAppendedIds(remaining.map(point => point.frameId));
+      setBlinkMode(true);
+      setPlaying(false);
+      setBlinkIndex(0);
       window.setTimeout(() => document.getElementById('moving-candidate-analysis')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
     } else {
       const panel = document.getElementById('auto-observation');
@@ -240,7 +246,8 @@ function App() {
 
   function selectFrame(id: string) {
     setSelectedId(id);
-    resetBlink();
+    if (!blinkMode && activeTrack) setPlaying(false);
+    else resetBlink();
   }
 
   const progress = showResults ? sequence.page?.progress : undefined;
@@ -411,7 +418,7 @@ function App() {
               showTimelineFrame(frame);
               if (reveal) imageStage.current?.scrollIntoView({ block: 'center' });
             }} />}
-        <div ref={imageStage} className={blinkMode || brightnessPoint ? "image-stage aligned-stage" : "image-stage"} tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
+        <div id="observation-image" ref={imageStage} className={blinkMode || brightnessPoint ? "image-stage aligned-stage" : "image-stage"} tabIndex={0} aria-label={blinkMode ? 'Aligned observation image; use left and right arrows to switch frames' : 'Observation image; use left and right arrows to change frames'}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
             event.preventDefault();
@@ -421,7 +428,7 @@ function App() {
               move(index + (event.key === 'ArrowRight' ? 1 : -1));
             }
           }}>
-          {mode === 'explore' && !blinkMode && selected ? <div id="observation-image"><RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} /></div> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
+          {mode === 'explore' && !blinkMode && selected ? <RegionImage key={selected.id} frame={{ ...selected, imageData: preview(selected) ?? selected.imageData }} zoom={zoom} explorer={explorer} sequenceId={spectrumSequenceId} showBackground clickToSelect onRegionSelected={viewStationarySpectrum} /> : mode === 'explore' && !blinkMode && unavailableSelection ? <div className="empty-state" role="status"><h3>Selected frame unavailable</h3><p>{unavailableSelection.error?.message ?? 'Preview could not be loaded.'}</p></div> : blinkMode && visible?.alignedImageData && visibleGrid ? <div className="aligned-image"
             style={{ width: zoom === 'fit' ? 'min(90%, 85cqh)' : `min(90%, ${visibleGrid.width * Number(zoom)}px)` }}>
             <AlignedPreview key={alignedAutoUrl(visible) ?? visible.id} autoUrl={alignedAutoUrl(visible)}
               lockedUrl={visible.alignedImageData} alt={`SPHEREx ${visible.detector} observation at ${visible.observedAtUtc}`}
@@ -618,7 +625,7 @@ function App() {
         </section>}
         {mode === 'explore' && (blinkMode ? <p className="hint">Aligned blink uses a different display grid. <button onClick={selectStationaryRegion}>Return to native image for region selection</button></p> : <FingerprintControls key={JSON.stringify(explorer.selection)} explorer={explorer} frame={selected} onRegionUpdated={viewStationarySpectrum} />)}
       </details>
-      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); selectFrame(id); setTab('image') }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={activeTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
+      {mode === 'explore' && <FingerprintPanel explorer={explorer} frame={selected} frames={ready} onSelect={id => { setBlinkMode(false); setPlaying(false); setSelectedId(id); setTab('image') }} onSelectRegion={selectStationaryRegion} onExploreMoving={viewMovingAnalysis} movingLinkLabel={activeTrack ? 'Go to moving-candidate analysis' : 'Go to Auto observation'} />}
     </div>
     {mode === 'explore' && <ChannelMeasurements explorer={explorer} open={tab === 'measurements'} />}
     {failed.length > 0 && <details className="panel failures"><summary>{failed.length} frames could not be loaded</summary><ul>{failed.map((frame) => <li key={frame.id}><strong>{frame.detector} · {frame.observedAtUtc}</strong><p>{frame.error?.message ?? 'Frame unavailable.'}</p></li>)}</ul></details>}

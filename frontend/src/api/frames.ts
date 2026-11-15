@@ -63,18 +63,20 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET'): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET', timeoutMs = 20_000): Promise<T> {
   let response: Response;
+  const timeout = AbortSignal.timeout(timeoutMs);
   try {
     response = await fetch(url, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+      signal: AbortSignal.any([signal, timeout]),
     });
   } catch (error) {
     if (signal.aborted) throw error;
-    throw new RequestError('Cannot reach the backend. Check that it is running on port 8000.', true);
+    if (timeout.aborted) throw new RequestError('The backend request timed out. Archive loading may still be running; try again shortly.', true);
+    throw new RequestError('Cannot reach the backend. Check the server connection and API proxy.', true);
   }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
@@ -155,5 +157,5 @@ export function fetchAutoObservation(sequenceId: string, signal: AbortSignal, st
 export function fetchMotionPhotometry(sequenceId: string, candidate: MotionCandidate, radiusPixels: number, signal: AbortSignal) {
   return request<MotionPhotometryResult>(`/api/frames/${encodeURIComponent(sequenceId)}/motion-photometry`, signal, {
     candidateId: candidate.id, radiusPixels,
-  });
+  }, 'POST', 300_000);
 }
