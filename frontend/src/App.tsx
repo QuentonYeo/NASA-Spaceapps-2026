@@ -8,6 +8,7 @@ import { useFrames } from './state/useFrames';
 import type { Frame } from './api/frames';
 import { GaiaMarkers } from './GaiaOverlay';
 import { arosaPosition } from './state/arosaValidation';
+import { vestaPosition } from './state/vestaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
 import { Home } from './Home';
 import { examples, fields } from './state/validationExamples';
@@ -23,7 +24,7 @@ function App() {
   const sequence = useFrames();
   const [mode, setMode] = useState(currentMode);
   const [exampleId, setExampleId] = useState(() =>
-    examples.find((example) => example.exposureIds[0] === sequence.query?.exposureIds?.[0])?.id ?? 'arosa');
+    examples.find((example) => example.exposureIds[0] === sequence.query?.exposureIds?.[0])?.id ?? examples[0].id);
   const example = examples.find((item) => item.id === exampleId) ?? examples[0];
   const [detector, setDetector] = useState(sequence.query?.detector ?? '');
   const activeExample = examples.find((item) => item.exposureIds[0] === sequence.query?.exposureIds?.[0]);
@@ -43,7 +44,7 @@ function App() {
   const [tab, setTab] = useState('image');
   const [contrast, setContrast] = useState('shared');
   const [blinkMode, setBlinkMode] = useState(!!sequence.query?.exposureIds);
-  const [showArosa, setShowArosa] = useState(true);
+  const [showTrajectory, setShowTrajectory] = useState(true);
   const [gaiaLabels, setGaiaLabels] = useState(false);
   const gaia = useGaiaCatalogue(mode !== 'home' && showResults && blinkMode ? sequence.page?.sequenceId : undefined);
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
@@ -64,7 +65,7 @@ function App() {
   const unavailableSelection = failed.find(frame => frame.id === selectedId);
   const selected = unavailableSelection ? undefined : ready[index];
   const aligned = ready.filter((frame) => frame.alignedImageData && frame.alignedGrid && frame.sharedDisplay);
-  const reference = aligned.find((frame) => frame.id === (selectedId ?? activeExample?.pair[0])) ?? aligned[0];
+  const reference = aligned.find((frame) => frame.id === (selectedId ?? activeExample?.blinkIds[0])) ?? aligned[0];
   const comparisons = reference && aligned.filter((frame) => frame.id !== reference.id &&
     frame.detector === reference.detector && frame.release === reference.release &&
     frame.sharedDisplay?.vmin === reference.sharedDisplay?.vmin &&
@@ -74,8 +75,9 @@ function App() {
     ? Infinity : Math.abs(frame.wavelengthUm - reference.wavelengthUm);
   const closest = comparisons?.reduce<Frame | undefined>((best, frame) =>
     !best || wavelengthDistance(frame) < wavelengthDistance(best) ? frame : best, undefined);
-  const defaultComparison = comparisons?.find((frame) => frame.id === activeExample?.pair[1]) ?? closest;
-  const chosenIds = appendedIds ?? (defaultComparison ? [defaultComparison.id] : []);
+  const preferredIds = activeExample?.blinkIds.filter((id) => comparisons?.some((frame) => frame.id === id)) ?? [];
+  const defaultIds = preferredIds.length ? preferredIds : closest ? [closest.id] : [];
+  const chosenIds = appendedIds ?? defaultIds;
   const blinkFrames = reference ? [reference, ...chosenIds.flatMap((id) =>
     comparisons?.filter((frame) => frame.id === id) ?? [])] : [];
   const candidates = comparisons?.filter((frame) => !chosenIds.includes(frame.id)) ?? [];
@@ -84,8 +86,15 @@ function App() {
   const activeIndex = Math.min(blinkIndex, Math.max(0, blinkCount - 1));
   const visible = blinkMode ? blinkFrames[activeIndex] : selected;
   const visibleGrid = blinkMode ? visible?.alignedGrid : visible?.grid;
-  const showArosaControl = blinkMode && blinkFrames.some((frame) => arosaPosition(frame, sequence.query));
-  const arosa = blinkMode && showArosa && visible ? arosaPosition(visible, sequence.query) : null;
+  function trajectoryFor(frame: Frame) {
+    const vesta = vestaPosition(frame, sequence.query);
+    if (vesta) return { ...vesta, name: 'Vesta' };
+    const arosa = arosaPosition(frame, sequence.query);
+    return arosa ? { ...arosa, name: 'Arosa', path: [arosa.start, arosa.end] } : null;
+  }
+
+  const trajectoryName = blinkMode ? blinkFrames.map(trajectoryFor).find(Boolean)?.name : undefined;
+  const trajectory = blinkMode && showTrajectory && visible ? trajectoryFor(visible) : null;
 
   useEffect(() => {
     if (!blinkMode || !playing || blinkCount < 2) return;
@@ -127,7 +136,7 @@ function App() {
   const finished = (progress?.ready ?? 0) + (progress?.failed ?? 0);
   const missingPreferredFrame = mode === 'validate' && activeExample &&
     ['completed', 'partial', 'failed'].includes(sequence.page?.status ?? '') &&
-    activeExample.pair.some((id) => !aligned.some((frame) => frame.id === id));
+    activeExample.blinkIds.some((id) => !aligned.some((frame) => frame.id === id));
   const status = sequence.paused ? 'paused' : sequence.busy ? sequence.page?.status ?? 'submitting' : sequence.page && ['queued', 'discovering', 'running'].includes(sequence.page.status) ? 'paused' : sequence.page?.status ?? 'idle';
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -145,7 +154,7 @@ function App() {
     if (mode === 'validate') {
       setBlinkMode(true);
       setZoom('fit');
-      setShowArosa(true);
+      setShowTrajectory(true);
       gaia.toggle(true);
       void sequence.start({ ...query, exposureIds: example.exposureIds });
     } else {
@@ -228,7 +237,7 @@ function App() {
           {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>{sequence.paused ? 'Resume loading' : 'Load next batch'}</button>}
           {sequence.error && <p className="error" role="alert">{sequence.error}</p>}
           {missingPreferredFrame && <p className="hint">
-            The documented pair is incomplete. The viewer uses available aligned frames.
+            The documented comparison is incomplete. The viewer uses available aligned frames.
             {sequence.page?.status === 'partial' || sequence.page?.status === 'failed' ? ' Select Start to retry.' : ''}
           </p>}
           {sequence.page?.status === 'completed' && progress?.total === 0 && <p>No observations cover this location.</p>}
@@ -285,8 +294,8 @@ function App() {
           {gaia.enabled && !!gaia.catalogue?.sources.length && <label>
             <input type="checkbox" checked={gaiaLabels} onChange={(event) => setGaiaLabels(event.target.checked)} /> Show Gaia labels
           </label>}
-          {showArosaControl && <label>
-            <input type="checkbox" checked={showArosa} onChange={(event) => setShowArosa(event.target.checked)} /> Show Arosa trajectory
+          {trajectoryName && <label>
+            <input type="checkbox" checked={showTrajectory} onChange={(event) => setShowTrajectory(event.target.checked)} /> Show {trajectoryName} trajectory
           </label>}
           {gaia.enabled && <span role="status">
             {gaia.loading ? 'Looking up Gaia DR3 sources…' : gaia.error
@@ -311,15 +320,15 @@ function App() {
             {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers catalogue={gaia.catalogue}
               query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
               side={visibleGrid.width} showLabels={gaiaLabels} />}
-            {arosa && <>
+            {trajectory && <>
               <svg className="arosa-track" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
-                <line x1={arosa.start.x} y1={arosa.start.y} x2={arosa.end.x} y2={arosa.end.y} />
+                <polyline points={trajectory.path.map(({ x, y }) => `${x},${y}`).join(' ')} />
               </svg>
-              <span className={arosa.verified ? 'arosa-marker' : 'arosa-marker arosa-estimated'} role="img"
-                aria-label={arosa.verified ? 'Arosa position checked in this exposure' : 'Estimated Arosa position'}
-                style={{ left: `${100 * arosa.x / visibleGrid.width}%`, top: `${100 * arosa.y / visibleGrid.height}%` }}>
-                <span className={arosa.x > visibleGrid.width / 2 ? 'arosa-label-left' : undefined}>
-                  {arosa.verified ? 'Arosa' : 'Arosa (est.)'}
+              <span className={trajectory.verified ? 'arosa-marker' : 'arosa-marker arosa-estimated'} role="img"
+                aria-label={trajectory.verified ? `${trajectory.name} position checked in this exposure` : `Estimated ${trajectory.name} position`}
+                style={{ left: `${100 * trajectory.x / visibleGrid.width}%`, top: `${100 * trajectory.y / visibleGrid.height}%` }}>
+                <span className={trajectory.x > visibleGrid.width / 2 ? 'arosa-label-left' : undefined}>
+                  {trajectory.name}{!trajectory.verified && ' (est.)'}
                 </span>
               </span>
             </>}
@@ -333,7 +342,7 @@ function App() {
           <div className="navigation blink-navigation">
             <button disabled={blinkCount < 2} onClick={() => showBlinkFrame(activeIndex - 1)}>← Previous</button>
             <button disabled={blinkCount < 2} onClick={() => {
-              if (!playing && reference) {
+              if (!playing && reference && mode !== 'validate') {
                 setSelectedId(reference.id);
                 setAppendedIds(chosenIds);
               }

@@ -12,7 +12,7 @@ http://127.0.0.1:8000, so the browser only calls its own origin. This is a devel
 proxy; production hosting must route `/api` to the backend separately.
 
 Home offers **Validate a known object** and **Explore for movement**. Validate
-loads selected exposure IDs for Arosa, M101 or Barnard’s Star and sets up their
+loads selected exposure IDs for Vesta, Arosa, M101 or Barnard’s Star and sets up their
 default comparison in Aligned Blink. Explore accepts ICRS RA, Dec and FOV in
 degrees and an optional detector filter. It loads one batch at a time.
 **Stop loading** stops polling. **Resume loading** reconnects to the same sequence
