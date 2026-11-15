@@ -24,6 +24,18 @@ export interface MotionCandidate {
   id: string; detector: string; detections: MotionDetection[]; displacementArcsec: number;
   elapsedHours: number; residualPixels: number; score: number;
 }
+export interface MotionPhotometryRow {
+  frameId: string; observedAtUtc: string; detector: string; release: string; sourceFitsUrl?: string; detectionSnr?: number;
+  status: 'measured' | 'partial' | 'unavailable'; reason?: string;
+  ra?: number; dec?: number; pixelX?: number; pixelY?: number;
+  wavelengthUm?: number | null; bandwidthUm?: number | null;
+  fluxMjy?: number; uncertaintyMjy?: number | null; signalToNoise?: number | null;
+  backgroundMjySr?: number; radiusPixels?: number; apertureCoverage?: number;
+  aperturePixels?: number; backgroundPixels?: number; flagsOr?: number | null; quality?: string;
+}
+export interface MotionPhotometryResult {
+  candidateId: string; unit: 'mJy'; processingVersion: string; method: string; radiusPixels: number; measurements: MotionPhotometryRow[];
+}
 export interface MotionSearch {
   analyzedFrames: number; comparable: boolean; candidates: MotionCandidate[];
 }
@@ -51,7 +63,7 @@ export class RequestError extends Error {
   }
 }
 
-async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number }, method = body ? 'POST' : 'GET'): Promise<T> {
+async function request<T>(url: string, signal: AbortSignal, body?: SkyQuery | { after: number } | { candidateId: string; radiusPixels: number }, method = body ? 'POST' : 'GET'): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -138,4 +150,10 @@ export function getGaiaCatalogue(sequenceId: string, signal: AbortSignal) {
 export function fetchAutoObservation(sequenceId: string, signal: AbortSignal, start = false) {
   return request<ObservationAnalysis>(`/api/frames/${encodeURIComponent(sequenceId)}/auto-observation${start ? '?rerun=true' : ''}`,
     signal, undefined, start ? 'POST' : 'GET');
+}
+
+export function fetchMotionPhotometry(sequenceId: string, candidate: MotionCandidate, radiusPixels: number, signal: AbortSignal) {
+  return request<MotionPhotometryResult>(`/api/frames/${encodeURIComponent(sequenceId)}/motion-photometry`, signal, {
+    candidateId: candidate.id, radiusPixels,
+  });
 }

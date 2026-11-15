@@ -12,6 +12,7 @@ import { vestaPosition } from './state/vestaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
 import { useAutoObservation } from './state/useAutoObservation';
 import { MovingCandidates } from './MovingCandidates';
+import { MovingCandidateAnalysis } from './MovingCandidateAnalysis';
 import { Home } from './Home';
 import { AlignedPreview } from './components/AlignedPreview';
 import { LightCurve } from './components/LightCurve';
@@ -64,6 +65,7 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [validation, setValidation] = useState('');
   const [zoom, setZoom] = useState(activeExample ? 'fit' : '4');
+  const [analysisRadius, setAnalysisRadius] = useState(2.5);
   const [tab, setTab] = useState('image');
   const [contrast, setContrast] = useState('shared');
   const [reviewContrast, setReviewContrast] = useState('auto');
@@ -126,6 +128,7 @@ function App() {
   const activeTrack = motion?.candidates.find((candidate) => candidate.id === reviewId);
   const timelineFrames = activeTrack ? blinkFrames : ready;
   const autoContrastSequence = activeTrack && reviewContrast === 'auto' ? sequence.page?.sequenceId : undefined;
+  const reviewRank = activeTrack ? motion!.candidates.findIndex((candidate) => candidate.id === activeTrack.id) + 1 : 0;
   function alignedAutoUrl(frame: Frame) {
     return autoContrastSequence && frame.scienceStatus === 'retained'
       ? `/api/frames/${encodeURIComponent(autoContrastSequence)}/frames/${encodeURIComponent(frame.id)}/aligned-auto.png`
@@ -197,6 +200,12 @@ function App() {
     setAppendedIds(remaining.map((point) => point.frameId));
     setBlinkMode(true);
     setZoom('fit');
+  }
+
+  function leaveCandidateReview() {
+    setBlinkMode(false);
+    resetBlink();
+    setTab('image');
   }
 
   function selectFrame(id: string) {
@@ -396,6 +405,9 @@ function App() {
               style={{ left: `${100 * measured.x / visibleGrid.width}%`, top: `${100 * measured.y / visibleGrid.height}%` }}>
               <span>Candidate</span>
             </FrameMarker>}
+            {measured && <svg className="candidate-aperture-overlay" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
+              <circle cx={measured.x} cy={measured.y} r={analysisRadius} />
+            </svg>}
             {trajectory && !activeTrack && <>
               <svg className="arosa-track" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
                 <polyline points={trajectory.path.map(({ x, y }) => `${x},${y}`).join(' ')} />
@@ -463,6 +475,13 @@ function App() {
             : 'Contrast stays fixed within a detector. Brightness can still change with wavelength.'
           : 'Each frame has its own brightness scale.') + ' Previews are unaligned.'}</p>
         </section>
+        {activeTrack && <section className="candidate-review-state" aria-label="Verify candidate">
+          <h3>Verify candidate {reviewRank}</h3>
+          <p>{activeTrack.detector} · {activeTrack.detections.length} measured positions · {activeTrack.displacementArcsec.toFixed(0)}″ over {activeTrack.elapsedHours.toFixed(1)} h.</p>
+          <p>The violet markers follow measured positions. Validate is the separate workflow for prepared known-object examples.</p>
+          <button className="text-button" onClick={leaveCandidateReview}>Return to observations</button>
+        </section>}
+        {activeTrack && spectrumSequenceId && <MovingCandidateAnalysis key={activeTrack.id} sequenceId={spectrumSequenceId} candidate={activeTrack} radius={analysisRadius} onRadiusChange={setAnalysisRadius} />}
         <details className="frame-settings">
           <summary>Frame display and blink settings</summary>
         <div className="viewer-controls">

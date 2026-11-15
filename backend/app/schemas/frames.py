@@ -111,6 +111,12 @@ class MotionCandidate(BaseModel):
     score: float
 
 
+class MotionPhotometryQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    candidateId: str = Field(min_length=1, max_length=64)
+    radiusPixels: float = Field(default=2.5, ge=0.5, le=8)
+
+
 class MotionSearch(BaseModel):
     analyzedFrames: int
     comparable: bool

@@ -1,8 +1,9 @@
 from app.services.native_regions import Aperture, PixelPosition, sky_aperture
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response
+from astropy.wcs import WcsError
 from app.domain.models import Region
-from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, ObservationAnalysis, SequencePage
+from app.schemas.frames import AcceptedSequence, BatchQuery, ErrorResponse, FrameQuery, GaiaCatalogue, MotionPhotometryQuery, ObservationAnalysis, SequencePage
 from app.services.interfaces import Frames
 from app.schemas.fingerprints import AcceptedFingerprint, FingerprintQuery, FingerprintStatus
 
@@ -74,6 +75,46 @@ def observation_status(sequence_id: str, response: Response,
                        service: Annotated[Frames, Depends(get_frames_service)]):
     response.headers["Cache-Control"] = "no-store"
     return service.auto_observation(sequence_id)
+
+
+@router.post("/{sequence_id}/motion-photometry")
+def motion_photometry(sequence_id: str, query: MotionPhotometryQuery, request: Request, response: Response):
+    """Measure a candidate at its recorded positions in retained native frames."""
+    from app.domain.errors import AppError
+    from app.services.motion_photometry import measure_position
+
+    job = request.app.state.frames.jobs.get(sequence_id)
+    analysis = job.observation or {}
+    if analysis.get("status") != "completed":
+        raise AppError("MOTION_ANALYSIS_NOT_READY", "Wait for Auto observation to finish before measuring a candidate.", 409)
+    candidate = next((item for item in analysis.get("candidates", []) if item["id"] == query.candidateId), None)
+    if candidate is None:
+        raise AppError("CANDIDATE_NOT_FOUND", "This candidate is not part of the completed motion analysis.", 404)
+    if len(candidate["detections"]) > 10:
+        raise AppError("CANDIDATE_TOO_LARGE", "This candidate has too many supporting frames to measure at once.", 422)
+    exposures = {exposure.id: exposure for exposure, _ in job.exposures}
+    if any(point["frameId"] not in exposures for point in candidate["detections"]):
+        raise AppError("UNKNOWN_FRAME", "A candidate position does not belong to this sequence.", 422)
+
+    rows = []
+    for point in candidate["detections"]:
+        exposure = exposures[point["frameId"]]
+        row = {"frameId": point["frameId"], "observedAtUtc": exposure.observed_at,
+               "detector": exposure.detector, "release": exposure.release,
+               "sourceFitsUrl": exposure.url, "ra": point["ra"], "dec": point["dec"],
+               "detectionSnr": point["signalToNoise"]}
+        cutout = job.science_cutout(point["frameId"])
+        if cutout is None:
+            rows.append({**row, "status": "unavailable", "reason": "Native science FITS is not retained for this frame."})
+            continue
+        try:
+            rows.append({**row, **measure_position(cutout, point["ra"], point["dec"], query.radiusPixels)})
+        except (OSError, KeyError, TypeError, ValueError, WcsError) as exc:
+            rows.append({**row, "status": "unavailable", "reason": str(exc)})
+    response.headers["Cache-Control"] = "no-store"
+    return {"candidateId": candidate["id"], "unit": "mJy", "processingVersion": "moving-aperture-quicklook-v1",
+            "method": "native circular aperture with local clipped-median background",
+            "radiusPixels": query.radiusPixels, "measurements": rows}
 
 
 @router.post("/{sequence_id}/auto-observation", status_code=202, response_model=ObservationAnalysis)
