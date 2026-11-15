@@ -843,3 +843,26 @@ footer{
   .workflow-shell .masthead { gap: 10px; }
   .workflow-shell .brand > span:last-child { display: none; }
 }
+
+.moving-candidates { margin: 0 0 18px; }
+.moving-candidates h3 { font-size: 15px; }
+.moving-candidates p { color: #acbbce; font-size: 12px; margin-top: 6px; }
+.moving-candidates ol {
+  list-style: none; display: grid; gap: 6px; margin: 8px 0 0; padding: 0;
+  max-height: 200px; overflow-y: auto;
+}
+.moving-candidates button {
+  width: 100%; text-align: left; display: flex; flex-wrap: wrap; gap: 4px 12px;
+  padding: 8px 10px; border: 1px solid #34495f; background: #142237; font-size: 12px;
+}
+.moving-candidates button[aria-pressed='true'] { border-color: #e9b4ff; }
+.moving-candidates button span { color: #bfccde; }
+.motion-marker {
+  position: absolute; width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid #e9b4ff; box-shadow: 0 0 0 1px #190e20;
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.motion-marker span {
+  position: absolute; right: calc(100% + 4px); top: 0;
+  padding: 1px 4px; background: #281832; color: #f1c5ff; font-size: 11px;
+}

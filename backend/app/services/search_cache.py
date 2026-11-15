@@ -44,7 +44,7 @@ class SearchCache:
         try:
             payload = gzip.compress(json.dumps({
                 "region": asdict(job.region), "status": job.status, "total": job.total,
-                "results": job.results, "scheduled": job.scheduled,
+                "results": job.results, "scheduled": job.scheduled, "motion": job.motion,
                 "exposures": [(asdict(exposure), visit) for exposure, visit in job.exposures],
                 "display_limits": [[*group, *limits] for group, limits in job.display_limits.items()],
             }, separators=(",", ":")).encode(), compresslevel=1)
@@ -69,7 +69,7 @@ class SearchCache:
             return Job(
                 sequence_id, Region(**data["region"]), finished=time.monotonic(),
                 status=data["status"], total=data["total"], results=data["results"],
-                scheduled=data["scheduled"],
+                scheduled=data["scheduled"], motion=data.get("motion"),
                 exposures=[(Exposure(**exposure), visit) for exposure, visit in data["exposures"]],
                 display_limits={(release, detector, unit): (low, high)
                                 for release, detector, unit, low, high in data["display_limits"]},

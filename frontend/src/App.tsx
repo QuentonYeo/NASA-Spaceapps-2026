@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useFrames } from './state/useFrames';
-import type { Frame } from './api/frames';
+import type { Frame, MotionCandidate } from './api/frames';
 import { GaiaMarkers } from './GaiaOverlay';
 import { arosaPosition } from './state/arosaValidation';
 import { vestaPosition } from './state/vestaValidation';
 import { useGaiaCatalogue } from './state/useGaiaCatalogue';
+import { MovingCandidates } from './MovingCandidates';
 import { Home } from './Home';
 import { examples, fields } from './state/validationExamples';
 import './App.css';
@@ -44,6 +45,7 @@ function App() {
   const [appendedIds, setAppendedIds] = useState<string[] | null>(null);
   const [candidateId, setCandidateId] = useState('');
   const [playing, setPlaying] = useState(false);
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [blinkIndex, setBlinkIndex] = useState(0);
 
   function preview(frame: Frame) {
@@ -76,6 +78,9 @@ function App() {
   const blinkCount = blinkFrames.length;
   const activeIndex = Math.min(blinkIndex, Math.max(0, blinkCount - 1));
   const visible = blinkMode ? blinkFrames[activeIndex] : selected;
+  const motion = mode === 'explore' && sequence.query?.findMovers ? sequence.page?.motion : null;
+  const activeTrack = motion?.candidates.find((candidate) => candidate.id === reviewId);
+  const measured = blinkMode && activeTrack?.detections.find((point) => point.frameId === visible?.id);
   const visibleGrid = blinkMode ? visible?.alignedGrid : visible?.grid;
   function trajectoryFor(frame: Frame) {
     const vesta = vestaPosition(frame, sequence.query);
@@ -94,6 +99,7 @@ function App() {
   }, [blinkMode, playing, blinkCount]);
 
   function resetBlink() {
+    setReviewId(null);
     setPlaying(false);
     setBlinkIndex(0);
     setAppendedIds(null);
@@ -106,6 +112,16 @@ function App() {
     setAppendedIds(chosenIds);
     setPlaying(false);
     setBlinkIndex((next + blinkCount) % blinkCount);
+  }
+
+  function reviewCandidate(track: MotionCandidate) {
+    const [first, ...remaining] = track.detections;
+    resetBlink();
+    setReviewId(track.id);
+    setSelectedId(first.frameId);
+    setAppendedIds(remaining.map((point) => point.frameId));
+    setBlinkMode(true);
+    setZoom('fit');
   }
 
   function selectFrame(id: string) {
@@ -139,7 +155,7 @@ function App() {
       gaia.toggle(true);
       void sequence.start({ ...query, exposureIds: example.exposureIds });
     } else {
-      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true });
+      void sequence.start({ ...query, detector: detector || undefined, manualBatches: true, findMovers: true });
     }
   }
 
@@ -213,7 +229,7 @@ function App() {
           {sequence.notice && <p className="hint">{sequence.notice}</p>}
           {sequence.page && sequence.page.remaining > 0 && <p className="hint">{sequence.page.scheduledCount} of {progress?.total} exposures requested. {sequence.page.remaining} not requested yet.</p>}
           {sequence.busy && <button className="text-button" disabled={!sequence.resumable} onClick={sequence.stop}>Stop loading</button>}
-          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>{sequence.paused ? 'Resume loading' : 'Load next batch'}</button>}
+          {!sequence.busy && sequence.resumable && <button className="primary" onClick={() => void sequence.resume()}>{sequence.paused ? 'Resume loading' : sequence.query?.findMovers ? 'Search more observations' : 'Load next batch'}</button>}
           {sequence.error && <p className="error" role="alert">{sequence.error}</p>}
           {missingPreferredFrame && <p className="hint">
             The documented comparison is incomplete. The viewer uses available aligned frames.
@@ -224,6 +240,8 @@ function App() {
       </aside>
       <section className="panel viewer-panel" aria-label="Frame viewer">
         <div className="viewer-heading"><div><p className="eyebrow">{mode === 'validate' && activeExample ? activeExample.name : 'OBSERVATIONS'}</p><h2>{selected ? `Visit ${selected.visit + 1}` : 'Your window into the sky'}</h2></div><span className="tag">{ready.length ? `${index + 1} / ${ready.length}` : 'NO FRAMES YET'}</span></div>
+        {mode === 'explore' && showResults && sequence.query?.findMovers && !sequence.error &&
+          <MovingCandidates search={motion} busy={sequence.busy} activeId={reviewId} onReview={reviewCandidate} />}
         <div className="viewer-controls">
         <label className="zoom-control">Display size
           <select value={zoom} onChange={(event) => setZoom(event.target.value)}>
@@ -298,7 +316,11 @@ function App() {
             {gaia.enabled && gaia.catalogue && sequence.query && <GaiaMarkers catalogue={gaia.catalogue}
               query={sequence.query} observedAt={visible.observedAtUtc} image={visible.alignedImageData}
               side={visibleGrid.width} showLabels={gaiaLabels} />}
-            {trajectory && <>
+            {measured && <span className="motion-marker" role="img" aria-label="Measured candidate position"
+              style={{ left: `${100 * measured.x / visibleGrid.width}%`, top: `${100 * measured.y / visibleGrid.height}%` }}>
+              <span>Candidate</span>
+            </span>}
+            {trajectory && !activeTrack && <>
               <svg className="arosa-track" viewBox={`0 0 ${visibleGrid.width} ${visibleGrid.height}`} aria-hidden="true">
                 <polyline points={trajectory.path.map(({ x, y }) => `${x},${y}`).join(' ')} />
               </svg>
@@ -334,6 +356,7 @@ function App() {
               <thead><tr>
                 <th scope="col">Frame</th><th scope="col">Observed (UTC)</th><th scope="col">Visit</th>
                 <th scope="col">Detector</th><th scope="col">Release</th><th scope="col">Wavelength at target (µm)</th>
+                {activeTrack && <><th scope="col">Measured RA / Dec</th><th scope="col">Peak S/N</th></>}
                 <th scope="col">Actions</th>
               </tr></thead>
               <tbody>{blinkFrames.map((frame, position) => <tr key={frame.id} className={position === activeIndex ? 'active-frame' : undefined}>
@@ -345,6 +368,11 @@ function App() {
               <td>{frame.observedAtUtc.replace('T', ' ').replace('Z', '')}</td>
               <td>{frame.visit + 1}</td><td>{frame.detector}</td><td>{frame.release}</td>
               <td>{frame.wavelengthUm?.toFixed(3) ?? 'Unavailable'}</td>
+              {activeTrack && (() => {
+                const point = activeTrack.detections.find((entry) => entry.frameId === frame.id);
+                return <><td>{point ? `${point.ra.toFixed(5)}°, ${point.dec.toFixed(5)}°` : '—'}</td>
+                  <td>{point ? point.signalToNoise.toFixed(1) : '—'}</td></>;
+              })()}
               <td>{position > 0 && <button aria-label={`Remove frame ${position + 1}`} onClick={() => {
                 showBlinkFrame(position === activeIndex ? 0 : activeIndex - Number(position < activeIndex));
                 setAppendedIds(chosenIds.filter((id) => id !== frame.id));

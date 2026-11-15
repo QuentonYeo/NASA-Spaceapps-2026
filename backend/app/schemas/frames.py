@@ -9,6 +9,7 @@ class FrameQuery(BaseModel):
     fov: float = Field(gt=0, le=1, description="Square cutout side length in degrees")
     exposureIds: list[str] | None = Field(default=None, min_length=1, max_length=12)
     detector: Literal["D1", "D2", "D3", "D4", "D5", "D6"] | None = None
+    findMovers: bool = False
 
 
 class BatchQuery(BaseModel):
@@ -91,6 +92,32 @@ class Progress(BaseModel):
     failed: int
 
 
+class MotionDetection(BaseModel):
+    frameId: str
+    observedAtUtc: str
+    x: float
+    y: float
+    ra: float
+    dec: float
+    signalToNoise: float
+
+
+class MotionCandidate(BaseModel):
+    id: str
+    detector: str
+    detections: list[MotionDetection]
+    displacementArcsec: float
+    elapsedHours: float
+    residualPixels: float
+    score: float
+
+
+class MotionSearch(BaseModel):
+    analyzedFrames: int
+    comparable: bool
+    candidates: list[MotionCandidate]
+
+
 class SequencePage(BaseModel):
     sequenceId: str
     centerRaDeg: float
@@ -105,6 +132,7 @@ class SequencePage(BaseModel):
     hasMore: bool
     pollAfterSeconds: int
     progress: Progress
+    motion: MotionSearch | None = None
     frames: list[Frame]
     error: ErrorInfo | None
 

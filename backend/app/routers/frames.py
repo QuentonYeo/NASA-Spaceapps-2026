@@ -16,7 +16,7 @@ def get_frames_service(request: Request) -> Frames:
 def start_frames(query: FrameQuery, response: Response,
                  service: Annotated[Frames, Depends(get_frames_service)]):
     result = service.start(Region(query.ra, query.dec, query.fov),
-                           exposure_ids=query.exposureIds, detector=query.detector)
+                           exposure_ids=query.exposureIds, detector=query.detector, find_movers=query.findMovers)
     response.headers["Location"] = result["pollUrl"]
     response.headers["Cache-Control"] = "no-store"
     return result

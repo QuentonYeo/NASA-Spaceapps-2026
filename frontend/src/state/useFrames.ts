@@ -60,7 +60,7 @@ export function useFrames() {
     const existing = session.current;
     const sameQuery = !!(input && existing && lastStatus.current !== 'failed' && lastStatus.current !== 'partial' && input.ra === existing.query.ra &&
       input.dec === existing.query.dec && input.fov === existing.query.fov &&
-      input.detector === existing.query.detector && input.manualBatches === existing.query.manualBatches &&
+      input.findMovers === existing.query.findMovers && input.detector === existing.query.detector && input.manualBatches === existing.query.manualBatches &&
       JSON.stringify(input.exposureIds) === JSON.stringify(existing.query.exposureIds));
     const newSearch = sameQuery ? undefined : input;
     const restorePaused = restoring && !!existing?.paused;

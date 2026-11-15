@@ -25,6 +25,7 @@ class Job:
     exposures: list[tuple[Exposure, int]] = field(default_factory=list)
     scheduled: int = 0
     display_limits: dict[tuple[str, str, str], tuple[float, float]] = field(default_factory=dict)
+    motion: dict | None = None
     gaia_catalogue: dict | None = None
     gaia_lock: Lock = field(default_factory=Lock)
     error: dict | None = None

@@ -16,7 +16,7 @@ loads selected exposure IDs for Vesta, Arosa, M101 or Barnard’s Star and sets 
 default comparison in Aligned Blink. Explore accepts ICRS RA, Dec and FOV in
 degrees and an optional detector filter. It loads one batch at a time.
 **Stop loading** stops polling. **Resume loading** reconnects to the same sequence
-and cursor, and **Load next batch** requests another batch. The backend may finish
+and cursor, and **Search more observations** requests another batch. The backend may finish
 a batch already in progress.
 
 Use Previous/Next, the slider, arrow keys while the viewer is focused, or the
@@ -59,7 +59,7 @@ Use `npx playwright test --headed --project=desktop` for a visible test browser.
 ## Batches and display size
 
 The backend initially downloads 12 exposures, not the whole discovered sequence.
-At `awaiting_more`, Explore waits for **Load next batch**. Validation can finish loading its small requested exposure set automatically. **Stop loading** pauses this loop;
+At `awaiting_more`, Explore waits for **Search more observations**. Validation can finish loading its small requested exposure set automatically. **Stop loading** pauses this loop;
 **Resume loading** continues from the saved sequence and completion cursor.
 The backend reports remaining exposures, selects each batch, and keeps visit labels
 consistent across batches. Configure `FRAME_BATCH_SIZE` on the backend to change 12.

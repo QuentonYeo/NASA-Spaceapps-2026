@@ -31,7 +31,7 @@ test('submits once, polls all pages, and navigates received images', async ({ pa
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/frames', async (route) => {
     submissions++;
-    expect(route.request().postDataJSON()).toEqual({ ra: 133.79513, dec: -7.24515, fov: 0.05 });
+    expect(route.request().postDataJSON()).toEqual({ ra: 133.79513, dec: -7.24515, fov: 0.05, findMovers: true });
     await route.fulfill({ status: 202, json: { sequenceId: 'browser-test', status: 'queued',
       pollUrl: '/api/frames/browser-test', pollAfterSeconds: 1 } });
   });
@@ -86,9 +86,9 @@ test('requests the next image batch on demand', async ({ page }) => {
   await page.goto('/#explore');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Load next batch' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Search more observations' })).toBeVisible();
   expect(batches).toBe(0);
-  await page.getByRole('button', { name: 'Load next batch' }).click();
+  await page.getByRole('button', { name: 'Search more observations' }).click();
   await expect(page.getByRole('button', { name: /Select frame/ })).toHaveCount(2);
   expect(batches).toBe(1);
   expect(cursors).toEqual(['0', '1', '1']);
@@ -162,4 +162,36 @@ test('launches the chosen validation example with its exposure IDs', async ({ pa
   await expect(table.getByRole('row')).toHaveCount(3);
   await expect(table.getByRole('row').nth(1)).toContainText('2025-05-10');
   await expect(page.getByLabel('Gaia reference stars')).toBeChecked();
+});
+
+test('reviews an automatically surfaced candidate in its supporting frames', async ({ page }) => {
+  const grid = { width: 30, height: 30, orientation: 'north-up' };
+  const frames = [frame('a', 10), frame('b', 11), frame('c', 12)].map((item) => ({
+    ...item, alignedGrid: grid, alignedImageData: png, sharedDisplay: {vmin: 0, vmax: 1},
+  }));
+  await page.route('**/api/frames', (route) => route.fulfill({ status: 202, json: {
+    sequenceId: 'motion-test', pollUrl: '/api/frames/motion-test', pollAfterSeconds: 1,
+  } }));
+  await page.route('**/api/frames/motion-test?*', (route) => route.fulfill({ json: {
+    sequenceId: 'motion-test', status: 'completed', nextCursor: 3, hasMore: false,
+    scheduledCount: 3, remaining: 0, batchSize: 12, progress: {total: 3, ready: 3, failed: 0}, frames,
+    motion: {analyzedFrames: 3, comparable: true, candidates: [{
+      id: '1-1', detector: 'SPHEREx-D3', displacementArcsec: 90, elapsedHours: 48,
+      residualPixels: .5, score: 3, detections: frames.map((item, i) => ({
+        frameId: item.id, observedAtUtc: item.observedAtUtc, x: 5 + i * 5, y: 10,
+        ra: 133 + i * .01, dec: -7.2, signalToNoise: 12,
+      })),
+    }]}, error: null,
+  } }));
+  await page.goto('/#explore');
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  await page.getByRole('button', { name: /Candidate 1/ }).click();
+  const rows = page.getByRole('table', {name: 'Selected frame comparison'}).getByRole('row');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(1)).toContainText('133.00000°');
+  const marker = page.getByRole('img', {name: 'Measured candidate position'});
+  await expect(marker).toBeVisible();
+  await rows.nth(2).getByRole('rowheader').getByRole('button').click();
+  await expect(marker).toHaveCSS('left', /px/);
+  await expect(rows.nth(2)).toContainText('133.01000°');
 });

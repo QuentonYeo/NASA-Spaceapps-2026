@@ -8,6 +8,7 @@ from app.services.cutout_cache import CutoutCache
 from app.services.gaia import query_gaia
 from app.services.interfaces import Archive, Cutouts, Renderer
 from app.services.jobs import Job, LocalJobs
+from app.services.movers import detect_spots, link_tracks, prioritize_exposures
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,10 @@ class FramesService:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
 
-    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None) -> dict:
+    def start(self, region: Region, *, exposure_ids: list[str] | None = None, detector: str | None = None, find_movers: bool = False) -> dict:
         job = Job(str(uuid4()), region)
+        if find_movers:
+            job.motion = {"analyzedFrames": 0, "comparable": False, "candidates": []}
         self.jobs.add(job)
         self.jobs.executor.submit(self._run, job, frozenset(exposure_ids or ()), detector)
         return {"sequenceId": job.id, "status": "queued",
@@ -50,10 +53,12 @@ class FramesService:
                     visit += 1
                 previous = exposure.mjd
                 grouped.append((exposure, visit))
+            if job.motion is not None:
+                grouped = prioritize_exposures(grouped)
             with job.lock:
                 job.total = len(grouped)
                 job.exposures = grouped
-                job.scheduled = min(self.batch_size, job.total)
+                job.scheduled = min(self._batch_limit(job), job.total)
             self._run_batch(job, 0)
         except AppError as exc:
             with job.lock:
@@ -75,7 +80,7 @@ class FramesService:
             if after != job.scheduled or job.status != "awaiting_more":
                 raise AppError("BATCH_NOT_AVAILABLE", "The next batch is not available at this offset.", 409)
             start = job.scheduled
-            job.scheduled = min(start + self.batch_size, job.total)
+            job.scheduled = min(start + self._batch_limit(job), job.total)
             job.status, job.finished = "queued", None
             self.jobs.executor.submit(self._run_batch, job, start)
             return self._accepted(job)
@@ -85,18 +90,39 @@ class FramesService:
         return {"sequenceId": job.id, "status": job.status,
                 "pollUrl": f"/api/frames/{job.id}", "pollAfterSeconds": 1}
 
+    def _batch_limit(self, job: Job) -> int:
+        if job.motion is None:
+            return self.batch_size
+        # Keep exposure triples together regardless of the regular preview batch size.
+        return 12
+
     def _run_batch(self, job: Job, start: int):
         try:
             with job.lock:
                 job.status = "running"
                 exposures = job.exposures[start:job.scheduled]
+            spots = []
             with ThreadPoolExecutor(max_workers=self.cutout_workers) as pool:
                 futures = [pool.submit(self._frame, job, exposure, visit)
                            for exposure, visit in exposures]
                 for future in as_completed(futures):
-                    result = future.result()
+                    result, detected = future.result()
+                    if detected is not None:
+                        spots.append(detected)
                     with job.lock:
                         job.results.append(result)
+            if job.motion is not None:
+                tracks, comparable = link_tracks(spots, job.region)
+                with job.lock:
+                    existing = job.motion
+                    candidates = existing["candidates"] + [
+                        {**track, "id": f"{start + 1}-{index}"} for index, track in enumerate(tracks, 1)
+                    ]
+                    job.motion = {
+                        "analyzedFrames": existing["analyzedFrames"] + len(spots),
+                        "comparable": existing["comparable"] or comparable,
+                        "candidates": sorted(candidates, key=lambda track: track["score"], reverse=True),
+                    }
             with job.lock:
                 failed = sum(r["status"] == "failed" for r in job.results)
                 job.status = ("awaiting_more" if job.scheduled < job.total else
@@ -116,6 +142,7 @@ class FramesService:
                   "release": exposure.release, "detector": exposure.detector, "wavelengthUm": None,
                   "sourceFitsUrl": exposure.url, "previewUrl": None, "coverage": None,
                   "status": "ready", "imageData": None, "grid": None, "display": None, "error": None}
+        detected = None
         try:
             if self.cutout_cache is None:
                 pixels = self.renderer.prepare(self.cutouts.fetch(exposure, job.region), job.region)
@@ -127,12 +154,17 @@ class FramesService:
                     job.display_limits.setdefault(group, pixels.limits)
                 shared = job.display_limits.get(group)
             result.update(self.renderer.preview(pixels, shared))
+            if job.motion is not None and result.get("alignedImageData"):
+                try:
+                    detected = detect_spots(exposure, pixels, job.region)
+                except (ValueError, TypeError, RuntimeError):
+                    logger.warning("Source analysis unavailable for frame %s", exposure.id, exc_info=True)
         except AppError as exc:
             result.update(status="failed", error=exc.payload())
         except Exception:
             logger.exception("Frame %s failed", exposure.id)
             result.update(status="failed", error=AppError("FRAME_ERROR", "The frame could not be prepared.", 500).payload())
-        return result
+        return result, detected
 
     def gaia_sources(self, sequence_id: str) -> dict:
         job = self.jobs.get(sequence_id)
@@ -153,6 +185,7 @@ class FramesService:
                     "status": job.status, "nextCursor": after + len(batch),
                     "hasMore": after + len(batch) < len(job.results), "pollAfterSeconds": 1,
                     "scheduledCount": job.scheduled, "remaining": job.total - job.scheduled,
-                    "batchSize": self.batch_size,
+                    "batchSize": self._batch_limit(job),
+                    "motion": job.motion,
                     "progress": {"total": job.total, "ready": ready, "failed": len(job.results) - ready},
                     "frames": batch, "error": job.error}

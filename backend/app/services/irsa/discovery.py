@@ -4,10 +4,13 @@ import requests
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
-from astroquery.ipac.irsa import IrsaClass
+from pyvo.dal.sia2 import SIA2Query
 from app.domain.errors import AppError
 from app.domain.models import Exposure, Region
 from app.services.irsa.retries import read_with_retries
+
+
+IRSA_SIA_ENDPOINT = "https://irsa.ipac.caltech.edu/SIA"
 
 
 class DeadlineSession(requests.Session):
@@ -28,18 +31,23 @@ class IrsaArchive:
         self.collections = collections
 
     def discover(self, region: Region) -> list[Exposure]:
-        # A separate client per operation avoids shared timeout/session mutations.
+        coord = SkyCoord(region.ra, region.dec, unit="deg")
+
         def query(remaining):
-            client = IrsaClass()
-            client._session.close()
-            client._session = DeadlineSession(remaining)
-            coord = SkyCoord(region.ra, region.dec, unit="deg")
-            try:
-                return [client.query_sia(pos=(coord, 1 * u.arcsec), collection=c)
-                        for c in self.collections]
-            finally:
-                client._session.close()
-        tables = read_with_retries(query)
+            # IRSA publishes this query URL directly. Avoid a separate capabilities
+            # request, which can fail even while exposure searches are working.
+            with DeadlineSession(remaining) as session:
+                return [
+                    SIA2Query(IRSA_SIA_ENDPOINT, pos=(coord, 1 * u.arcsec),
+                              collection=collection, session=session).execute().to_table()
+                    for collection in self.collections
+                ]
+
+        try:
+            tables = read_with_retries(query)
+        except AppError as exc:
+            raise AppError(exc.code, f"IRSA exposure lookup failed. {exc.message}",
+                           exc.status, exc.retryable, exc.retry_after) from exc
         result = []
         try:
             for table in tables:

@@ -19,7 +19,7 @@ Submit `POST /api/frames` with JSON:
 {"ra": 133.79513, "dec": -7.24515, "fov": 0.05}
 ```
 
-Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up to 1 degree. Optional `exposureIds` (1–12) and `detector` (D1–D6) restrict discovery results before downloads are scheduled.
+Coordinates and FOV are degrees (ICRS). FOV is the square cutout side length, up to 1 degree. Optional `exposureIds` (1–12) and `detector` (D1–D6) restrict discovery results before downloads are scheduled. Set `findMovers: true` to prioritize observation triples and return ranked tracks in the poll response’s `motion` field. Motion searches work in batches of at most 12 exposures. Each batch is analyzed independently on FITS pixels, and completed candidate lists are retained with the search checkpoint.
 Returns HTTP 202 with `sequenceId`, `pollUrl`, and `pollAfterSeconds`.
 Poll `GET {pollUrl}?after=0`, then use each response's `nextCursor` as `after`.
 Respect `pollAfterSeconds` and continue until status is terminal **and** `hasMore`
@@ -136,7 +136,9 @@ PNG API contract. S3 reads only the spatial IMAGE section needed for the preview
 it does not fetch the PSF extension or process variance/flags. Native pixel boxes
 may differ slightly at boundaries from IRSA cutouts. Neither provider aligns images.
 
-IRSA uses one thread-safe HTTPX client per app with a connection pool sized for both
+Exposure discovery calls IRSA’s public SIA2 search endpoint directly, without a separate capabilities lookup.
+
+IRSA cutout retrieval uses one thread-safe HTTPX client per app with a connection pool sized for both
 running jobs. Idle connections expire after five seconds. Connect/write timeout is
 10 seconds, read inactivity timeout 25 seconds, and pool wait timeout five seconds
 (all capped by the retry budget). Reuse does not eliminate upstream read timeouts;

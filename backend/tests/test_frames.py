@@ -364,3 +364,33 @@ def test_validation_only_schedules_requested_exposures(service):
     page = completed(service, response.json()["sequenceId"])
     assert page["progress"] == {"total": 1, "ready": 1, "failed": 0}
     assert [frame["id"] for frame in page["frames"]] == ["selected"]
+
+
+def test_irsa_discovery_uses_direct_search_endpoint(monkeypatch):
+    from app.services.irsa import discovery
+
+    calls = []
+
+    class Search:
+        def __init__(self, url, *, pos, collection, session):
+            calls.append((url, pos, collection, session))
+
+        def execute(self):
+            return self
+
+        def to_table(self):
+            return [{
+                "obs_publisher_did": "sample", "access_url": "https://example.test/frame.fits",
+                "obs_collection": "spherex_dr1", "energy_bandpassname": "SPHEREx-D6",
+                "t_min": 60000.0,
+            }]
+
+    monkeypatch.setattr(discovery, "SIA2Query", Search)
+    frames = discovery.IrsaArchive().discover(Region(210.8, 54.3, .1))
+    [(url, (center, radius), collection, session)] = calls
+    assert url == "https://irsa.ipac.caltech.edu/SIA"
+    assert center.ra.deg == pytest.approx(210.8)
+    assert radius.value == 1
+    assert collection == "spherex_dr1"
+    assert isinstance(session, discovery.DeadlineSession)
+    assert [frame.id for frame in frames] == ["sample"]

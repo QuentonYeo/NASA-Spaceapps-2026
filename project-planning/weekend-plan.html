@@ -224,6 +224,8 @@ tasks.push(
     detail: 'An optional overlay queries Gaia once per retained sky search, applies available proper motion at each frame date and draws markers on aligned pixels with usable coverage. Catalogue markers are expected positions and may lack visible infrared counterparts.'},
   {id: 'viewer-workflow-launcher', title: 'Guide users to validation or exploration from Home', lane: 2, milestone: 3, stretch: false, initialStatus: 'Done',
     detail: 'Validation loads known exposure IDs and opens a prepared blink pair. Explore accepts custom coordinates or curated field suggestions and loads each additional batch on demand. Automatic field ranking and motion measurements remain pending.'},
+  {id: 'viewer-motion-candidates', title: 'Automatically surface track candidates from a sky search', lane: 2, milestone: 3, stretch: false, initialStatus: 'Done',
+    detail: 'Explore prioritizes compatible exposure triples and analyzes batches of up to 12. Users can review ranked candidates and measured positions in Aligned Blink. This is a numerical baseline; learned ranking and catalogue cross-matching remain future work.'},
   {id: 'archive-quality-metadata', title: 'Preserve quality arrays and metadata for the processing handoff', lane: 0, milestone: 3, stretch: false,
     detail: 'Coordinate with the image-processing developer on a richer cutout contract. Supply matching FLAGS, VARIANCE, ZODI, required PSF/spectral WCS information and original processing headers. The current S3 preview adapter retains only cropped IMAGE plus spatial WCS; do not derive scientific quality from PNGs.'},
   {id: 'processing-quality-previews', title: 'Address noisy previews with quality-aware rendering and comparable wavelengths', lane: 1, milestone: 3, stretch: false,

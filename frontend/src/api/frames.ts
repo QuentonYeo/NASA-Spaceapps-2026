@@ -3,6 +3,7 @@ export interface SkyQuery {
   exposureIds?: string[];
   detector?: string;
   manualBatches?: boolean;
+  findMovers?: boolean;
 }
 export interface ApiError { code: string; message: string; retryable: boolean; retryAfterSeconds: number | null }
 export interface Frame {
@@ -16,11 +17,22 @@ export interface Frame {
   grid: { width: number; height: number; orientation: string } | null;
   error: ApiError | null;
 }
+export interface MotionDetection {
+  frameId: string; observedAtUtc: string; x: number; y: number; ra: number; dec: number; signalToNoise: number;
+}
+export interface MotionCandidate {
+  id: string; detector: string; detections: MotionDetection[]; displacementArcsec: number;
+  elapsedHours: number; residualPixels: number; score: number;
+}
+export interface MotionSearch {
+  analyzedFrames: number; comparable: boolean; candidates: MotionCandidate[];
+}
 export interface SequencePage {
   sequenceId: string; status: 'queued' | 'discovering' | 'running' | 'awaiting_more' | 'completed' | 'partial' | 'failed';
   scheduledCount: number; remaining: number; batchSize: number;
   nextCursor: number; hasMore: boolean; pollAfterSeconds: number;
   progress: { total: number; ready: number; failed: number };
+  motion?: MotionSearch | null;
   frames: Frame[]; error: ApiError | null;
 }
 interface Accepted { sequenceId: string; pollUrl: string; pollAfterSeconds: number }
@@ -94,8 +106,8 @@ export async function pollSequence(
 }
 
 export async function startSequence(query: SkyQuery, signal: AbortSignal): Promise<Accepted> {
-  const { ra, dec, fov, exposureIds, detector } = query;
-  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector });
+  const { ra, dec, fov, exposureIds, detector, findMovers } = query;
+  return request<Accepted>('/api/frames', signal, { ra, dec, fov, exposureIds, detector, findMovers });
 }
 
 export async function requestBatch(sequenceId: string, after: number, signal: AbortSignal): Promise<Accepted> {

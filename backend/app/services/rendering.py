@@ -35,6 +35,7 @@ class PreviewPixels:
     wavelength_um: float | None
     wcs: WCS | None
     region: Region | None
+    variance: np.ndarray | None = None
 
 
 class CutoutCoverageMiss(Exception):
@@ -121,6 +122,7 @@ class FitsRenderer:
                 if data.ndim != 2 or not data.size:
                     raise ValueError("Expected a two-dimensional image")
                 valid = np.isfinite(data)
+                variance = None
                 if "FLAGS" in hdus:
                     flags = hdus["FLAGS"]
                     if flags.shape == data.shape:
@@ -147,13 +149,15 @@ class FitsRenderer:
             if crop_cached and region is not None:
                 crop = covered_slice(wcs, data.shape, region)
                 data, valid = data[crop], valid[crop]
+                if variance is not None:
+                    variance = variance[crop]
                 wcs = wcs.slice(crop)
                 if not valid.any():
                     raise CutoutCoverageMiss
             if not valid.any():
                 raise ValueError("No valid pixels")
             low, high = np.percentile(data[valid], [0.5, 99.5])
-            return PreviewPixels(data, valid, (float(low), float(high)), unit, wavelength, wcs, region)
+            return PreviewPixels(data, valid, (float(low), float(high)), unit, wavelength, wcs, region, variance)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise AppError("CUTOUT_INVALID", "The archive cutout could not be rendered.") from exc
 
